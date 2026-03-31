@@ -7,7 +7,6 @@ const axios = require('axios');
 
 const { HeliusMonitor } = require('./helius');
 const { BirdeyeService } = require('./birdeye');
-const { XSocialService } = require('./xsocial');
 const { SafetyChecker } = require('./safetyChecker');
 const { TokenStore, STABLE_INTERVAL_MS } = require('./tokenStore');
 const { WebhookService } = require('./webhook');
@@ -31,9 +30,8 @@ function broadcast(type, data) {
 const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
 
 const birdeye = new BirdeyeService(process.env.BIRDEYE_API_KEY);
-const xService = new XSocialService(process.env.X_BEARER_TOKEN);
-const helius = new HeliusMonitor(process.env.HELIUS_API_KEY);
-const safety = new SafetyChecker(HELIUS_RPC_URL, birdeye);
+const helius  = new HeliusMonitor(process.env.HELIUS_API_KEY);
+const safety  = new SafetyChecker(HELIUS_RPC_URL, birdeye);
 const webhook = new WebhookService();
 webhook.setBroadcast(broadcast);
 
@@ -156,7 +154,6 @@ app.get('/api/stats', (req, res) => {
     uptime: Math.floor(process.uptime()),
     webhookEnabled: webhook.enabled,
     webhookFired: webhook.getFired().length,
-    webhookPending: webhook.getPending().length,
     working: isWorking,
     currentBJT: bjtTimeStr(),
   });
@@ -180,7 +177,7 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
 
   try {
     // ══════════════════════════════════════════════
-    // 🛡️ 前置安全检测（authority + dev + bundle）
+    // 🛡️ 前置安全检测（authority + bundle）
     // ══════════════════════════════════════════════
     const safetyResult = await safety.check(mintAddress, devAddress);
 
@@ -192,9 +189,7 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
         risk: safetyResult.risk,
         reason: safetyResult.stage === 'authority'
           ? 'Authority not revoked'
-          : safetyResult.stage === 'devHistory'
-            ? safetyResult.devDetails?.reason
-            : safetyResult.bundleDetails?.reason,
+          : safetyResult.bundleDetails?.reason,
         devAddress,
       });
       return;
@@ -220,13 +215,9 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
       devAddress:     devAddress || null,
       price:          Number(tokenData.price)          || 0,
       priceChange24h: Number(tokenData.priceChange24h) || 0,
-      // 安全检测结果（前端展示用）
-      devRisk:        safetyResult.devRisk,
-      devDetails:     safetyResult.devDetails,
+      // 安全检测结果
       bundleRisk:     safetyResult.bundleRisk,
       bundleDetails:  safetyResult.bundleDetails,
-      // X 社交分析（后置，异步填充）
-      xSocial:        null,
     };
 
     store.add(entry);
@@ -235,53 +226,22 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
 
     console.log(
       `[ADD] $${entry.symbol} | LP=$${fmtNum(entry.lp)} FDV=$${fmtNum(entry.fdv)}` +
-      ` | dev=${safetyResult.devRisk} bundle=${safetyResult.bundleRisk}`
+      ` | bundle=${safetyResult.bundleRisk}`
     );
 
     // ══════════════════════════════════════════════
     // 🔄 异步任务（不阻塞主流程）
     // ══════════════════════════════════════════════
 
-    // 1) Holder stats
+    // Holder stats
     fetchHolderStats(mintAddress, devAddress).then(stats => {
       if (!store.get(mintAddress)) return;
       store.update(mintAddress, stats);
       broadcast('token_updated', store.get(mintAddress));
     });
 
-    // 2) X 社交分析（初始）
-    fetchXSocial(mintAddress, entry.symbol, 'initial');
-
-    // 3) X 社交分析（2分钟后复查）
-    setTimeout(() => {
-      if (store.get(mintAddress)) fetchXSocial(mintAddress, entry.symbol, 'recheck');
-    }, 2 * 60 * 1000);
-
   } catch (err) {
     console.error(`[ERROR] processNewToken ${mintAddress}:`, err.message);
-  }
-}
-
-// ========== X 社交分析 ==========
-async function fetchXSocial(mintAddress, symbol, stage) {
-  try {
-    const result = await xService.analyze(symbol, mintAddress);
-    const token = store.get(mintAddress);
-    if (!token || !result) return;
-
-    store.update(mintAddress, { xSocial: result });
-    const updated = store.get(mintAddress);
-    broadcast('token_updated', updated);
-
-    console.log(
-      `[X] $${symbol} (${stage}): score=${result.score}` +
-      ` real=${result.realUserCount} engage=${result.totalEngagement}`
-    );
-
-    // 社交数据到了，重新检查 webhook
-    await webhook.check(updated, store.getStableReading(mintAddress));
-  } catch (err) {
-    console.error(`[ERROR] fetchXSocial $${symbol}:`, err.message);
   }
 }
 
@@ -391,7 +351,6 @@ helius.onMigration(async (event) => {
 
 // ========== 启动 ==========
 startScheduler();
-xService.testProxyConnection().catch(() => {});
 
 wss.on('connection', (ws) => {
   console.log('[WS] Client connected');
@@ -411,11 +370,9 @@ server.listen(PORT, () => {
   console.log(`📡 Listening for pump.fun migrations via Helius...`);
   console.log(`🔑 Helius:   ${process.env.HELIUS_API_KEY   ? '✓' : '✗ MISSING'}`);
   console.log(`🔑 Birdeye:  ${process.env.BIRDEYE_API_KEY  ? '✓' : '✗ MISSING'}`);
-  console.log(`🔑 X API:    ${process.env.X_BEARER_TOKEN   ? '✓' : '✗ MISSING'}`);
-  console.log(`🔑 Webshare: ${process.env.WEBSHARE_PROXY_USER || process.env.WEBSHARE_API_KEY ? '✓' : '✗ not set (direct)'}`);
   console.log(`🔔 Webhook:  ${process.env.WEBHOOK_URL ? `✓ → ${process.env.WEBHOOK_URL}` : '✗ not set'}`);
-  console.log(`   Thresholds: FDV≥$${process.env.WEBHOOK_MIN_FDV || 25000} LP≥$${process.env.WEBHOOK_MIN_LP || 5000} Holders≥${process.env.WEBHOOK_MIN_HOLDERS || 10} XScore≥${process.env.WEBHOOK_MIN_X_SCORE || 10}`);
-  console.log(`🛡️  Safety: authority → dev history (7d≥${process.env.DEV_RISK_7D_TOKENS || 3}, 30d≥${process.env.DEV_RISK_30D_TOKENS || 5}) → bundle`);
+  console.log(`   Thresholds: FDV≥$${process.env.WEBHOOK_MIN_FDV || 25000} LP≥$${process.env.WEBHOOK_MIN_LP || 5000} Holders≥${process.env.WEBHOOK_MIN_HOLDERS || 10}`);
+  console.log(`🛡️  Safety: authority → bundle (high≥${process.env.BUNDLE_HIGH_THRESHOLD || 5}, med≥${process.env.BUNDLE_MED_THRESHOLD || 3})`);
   console.log(`⏱  Stable check interval: ${STABLE_INTERVAL_MS / 60000} min`);
   console.log(`🕐 Schedule: BJT 07:00 – 23:30\n`);
 });
