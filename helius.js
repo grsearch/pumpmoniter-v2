@@ -129,13 +129,22 @@ class HeliusMonitor {
     if (msg.method === 'logsNotification') {
       const value = msg.params?.result?.value;
       if (!value) return;
-      // 注意：不跳过 value.err，某些迁移有部分错误但实际已完成
       const logs = value.logs || [];
-      if (!this._isMigrationLogs(logs)) return;
+
+      // WS 预过滤：宽松匹配，只要有迁移相关关键词就拉完整交易验证
+      // 严格判断在 _parseTxFromRpc → _isMigrationLogs 中用完整日志做
+      const mayBeMigration = logs.some(log =>
+        log.includes('Migrate') ||
+        log.includes('MigrateFunds') ||
+        log.includes('CreatePool') ||
+        log.includes('InitializePool')
+      );
+      if (!mayBeMigration) return;
+
       const sig = value.signature;
       if (!sig || this.seenSigs.has(sig)) return;
       this.seenSigs.add(sig);
-      console.log(`[Helius] WS migration detected: ${sig?.slice(0,8)}...`);
+      console.log(`[Helius] WS candidate: ${sig?.slice(0,8)}...`);
       this._parseTxFromRpc(sig).catch(err =>
         console.error(`[Helius] parseTx error (${sig?.slice(0,8)}):`, err.message)
       );
@@ -255,23 +264,46 @@ class HeliusMonitor {
   }
 
   /**
-   * 迁移日志关键词匹配（扩展版）
+   * 迁移日志判断（严格版）
    *
-   * PumpSwap 迁移日志通常包含:
-   *   - "Program 6EF8r... invoke" + "Migrate" 字样
-   *   - "Program pAMMBay... invoke" + "create_pool" 或 "CreatePool"
+   * 真正的迁移交易特征：
    *
-   * 旧版 Raydium 迁移包含:
-   *   - "MigrateFunds" / "InitializePool"
+   * PumpSwap 路径（95%+ 自 2025.3）：
+   *   - BC 程序 (6EF8r...) 被调用 + 日志含 "Migrate"
+   *   - AND AMM 程序 (pAMMBay...) 被调用（创建池）
+   *
+   * Raydium 路径（少量旧版）：
+   *   - 日志含 "MigrateFunds" 或 "InitializePool"
+   *
+   * 关键区别：单独出现 "Migrate" 可能是其他操作（如查询状态），
+   * 必须同时看到 AMM 程序被 invoke 才是真正迁移完成
    */
   _isMigrationLogs(logs) {
-    return logs.some(log =>
-      log.includes('MigrateFunds')    ||
-      log.includes('CreatePool')      ||
-      log.includes('InitializePool')  ||
-      log.includes('Migrate')         ||   // PumpSwap 迁移的主要关键词
-      log.includes('create_pool')          // PumpSwap AMM 创建池
+    const joined = logs.join('\n');
+
+    // 旧版 Raydium 迁移（保留兼容）
+    if (joined.includes('MigrateFunds') || joined.includes('InitializePool')) {
+      return true;
+    }
+
+    // PumpSwap 迁移：必须同时满足两个条件
+    const hasBCMigrate = logs.some(log =>
+      log.includes(PUMP_BC_PROGRAM) && log.includes('invoke')
+    ) && logs.some(log =>
+      log.includes('Program log: Migrate')
     );
+
+    const hasAMMPool = logs.some(log =>
+      log.includes(PUMP_AMM_PROGRAM) && log.includes('invoke')
+    );
+
+    // BC 程序发起 Migrate + AMM 程序被调用 = 真正迁移
+    if (hasBCMigrate && hasAMMPool) return true;
+
+    // 备用：AMM 程序 invoke + CreatePool 日志
+    if (hasAMMPool && logs.some(log => log.includes('CreatePool'))) return true;
+
+    return false;
   }
 
   /**
