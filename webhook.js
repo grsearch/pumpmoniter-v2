@@ -4,7 +4,7 @@ const axios = require('axios');
  * Webhook 发送服务
  *
  * 触发条件（AND 关系，全部满足才发送）：
- *   - FDV >= $25,000
+ *   - FDV >= $15,000
  *   - LP  >= $5,000
  *   - HOLDERS >= 10
  *
@@ -14,7 +14,7 @@ const axios = require('axios');
 class WebhookService {
   constructor() {
     this.url        = process.env.WEBHOOK_URL || '';
-    this.minFdv     = Number(process.env.WEBHOOK_MIN_FDV)      || 25000;
+    this.minFdv     = Number(process.env.WEBHOOK_MIN_FDV)      || 15000;
     this.minLp      = Number(process.env.WEBHOOK_MIN_LP)       || 5000;
     this.minHolders = Number(process.env.WEBHOOK_MIN_HOLDERS)  || 10;
 
