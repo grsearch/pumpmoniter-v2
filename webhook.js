@@ -7,8 +7,6 @@ const axios = require('axios');
  *   - FDV >= $15,000
  *   - LP  >= $5,000
  *   - HOLDERS >= 10
- *
- * firedSet 保证每个 mint 只发送一次。
  */
 
 class WebhookService {
@@ -61,14 +59,12 @@ class WebhookService {
       holders:    token.holders    ?? 0,
       top10Pct:   fmt1(token.top10Pct),
       devPct:     fmt1(token.devPct),
-      bundleRisk: token.bundleRisk || 'unknown',
     };
 
     console.log(
       `[Webhook] 🚀 Firing $${token.symbol}` +
       ` | FDV=$${token.fdv} LP=$${token.lp}` +
-      ` | Holders=${payload.holders}` +
-      ` | Bundle=${token.bundleRisk}`
+      ` | Holders=${payload.holders}`
     );
 
     try {

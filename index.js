@@ -166,40 +166,25 @@ app.get('/api/webhook/fired', (req, res) => {
 // ========== Process new migration event ==========
 async function processNewToken(mintAddress, symbol, name, devAddress) {
   if (!isWorking) return;
-  if (store.get(mintAddress)) {
-    console.log(`[SKIP] ${mintAddress} already tracked`);
-    return;
-  }
+  if (store.get(mintAddress)) return;
 
-  console.log(`\n[NEW] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`[NEW] Migration detected: ${mintAddress}`);
-  console.log(`[NEW] Dev: ${devAddress || 'unknown'}`);
+  const detectTime = Date.now();
+  console.log(`\n[NEW] Migration: ${mintAddress} dev=${devAddress || 'unknown'}`);
 
   try {
-    // ══════════════════════════════════════════════
-    // 🛡️ 前置安全检测（authority + bundle）
-    // ══════════════════════════════════════════════
-    const safetyResult = await safety.check(mintAddress, devAddress);
-
+    // 🛡️ Authority check only（~1-2s）
+    const safetyResult = await safety.check(mintAddress);
     if (!safetyResult.safe) {
-      console.log(`[REJECT] ${mintAddress} blocked at ${safetyResult.stage}: ${safetyResult.risk}`);
-      broadcast('token_skipped', {
-        mint: mintAddress,
-        stage: safetyResult.stage,
-        risk: safetyResult.risk,
-        reason: safetyResult.stage === 'authority'
-          ? 'Authority not revoked'
-          : safetyResult.bundleDetails?.reason,
-        devAddress,
-      });
+      console.log(`[REJECT] ${mintAddress}: ${safetyResult.reason}`);
+      broadcast('token_skipped', { mint: mintAddress, reason: safetyResult.reason });
       return;
     }
 
-    // ══════════════════════════════════════════════
-    // ✅ 安全检测通过，获取基本数据并入库
-    // ══════════════════════════════════════════════
+    // 获取 Birdeye 数据（~1-2s）
     const tokenData = await birdeye.getTokenData(mintAddress);
     if (!tokenData) { console.log(`[SKIP] ${mintAddress} no token data`); return; }
+
+    const birdeyeHolders = Number(tokenData.holder) || 0;
 
     const entry = {
       mint:           mintAddress,
@@ -209,35 +194,31 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
       addedAt:        Date.now(),
       lp:             Number(tokenData.liquidity)      || 0,
       fdv:            Number(tokenData.fdv)            || 0,
-      holders:        0,
+      holders:        birdeyeHolders,
       top10Pct:       null,
       devPct:         null,
       devAddress:     devAddress || null,
       price:          Number(tokenData.price)          || 0,
       priceChange24h: Number(tokenData.priceChange24h) || 0,
-      // 安全检测结果
-      bundleRisk:     safetyResult.bundleRisk,
-      bundleDetails:  safetyResult.bundleDetails,
     };
 
     store.add(entry);
     store.recordLpFdv(mintAddress, entry.lp, entry.fdv);
     broadcast('token_added', entry);
 
-    console.log(
-      `[ADD] $${entry.symbol} | LP=$${fmtNum(entry.lp)} FDV=$${fmtNum(entry.fdv)}` +
-      ` | bundle=${safetyResult.bundleRisk}`
-    );
+    const elapsed = Date.now() - detectTime;
+    console.log(`[ADD] $${entry.symbol} | LP=$${fmtNum(entry.lp)} FDV=$${fmtNum(entry.fdv)} | holders=${birdeyeHolders} | ${elapsed}ms`);
 
-    // ══════════════════════════════════════════════
-    // 🔄 异步任务（不阻塞主流程）
-    // ══════════════════════════════════════════════
+    // 🔔 立即检查 webhook（不等 30s 定期循环）
+    webhook.check(entry, null).catch(() => {});
 
-    // Holder stats
+    // 🔄 异步补充 holder 详细数据（top10、devPct），完成后再试一次 webhook
     fetchHolderStats(mintAddress, devAddress).then(stats => {
       if (!store.get(mintAddress)) return;
       store.update(mintAddress, stats);
-      broadcast('token_updated', store.get(mintAddress));
+      const updated = store.get(mintAddress);
+      broadcast('token_updated', updated);
+      webhook.check(updated, store.getStableReading(mintAddress)).catch(() => {});
     });
 
   } catch (err) {
@@ -371,8 +352,8 @@ server.listen(PORT, () => {
   console.log(`🔑 Helius:   ${process.env.HELIUS_API_KEY   ? '✓' : '✗ MISSING'}`);
   console.log(`🔑 Birdeye:  ${process.env.BIRDEYE_API_KEY  ? '✓' : '✗ MISSING'}`);
   console.log(`🔔 Webhook:  ${process.env.WEBHOOK_URL ? `✓ → ${process.env.WEBHOOK_URL}` : '✗ not set'}`);
-  console.log(`   Thresholds: FDV≥$${process.env.WEBHOOK_MIN_FDV || 25000} LP≥$${process.env.WEBHOOK_MIN_LP || 5000} Holders≥${process.env.WEBHOOK_MIN_HOLDERS || 10}`);
-  console.log(`🛡️  Safety: authority → bundle (high≥${process.env.BUNDLE_HIGH_THRESHOLD || 5}, med≥${process.env.BUNDLE_MED_THRESHOLD || 3})`);
+  console.log(`   Thresholds: FDV≥$${process.env.WEBHOOK_MIN_FDV || 15000} LP≥$${process.env.WEBHOOK_MIN_LP || 5000} Holders≥${process.env.WEBHOOK_MIN_HOLDERS || 10}`);
+  console.log(`🛡️  Safety: authority check only`);
   console.log(`⏱  Stable check interval: ${STABLE_INTERVAL_MS / 60000} min`);
   console.log(`🕐 Schedule: BJT 07:00 – 23:30\n`);
 });

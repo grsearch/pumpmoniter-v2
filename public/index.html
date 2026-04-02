@@ -187,7 +187,6 @@
         <th data-col="holders">HOLDERS</th>
         <th data-col="top10Pct">TOP 10</th>
         <th data-col="devPct">DEV</th>
-        <th data-col="bundleRisk">BUNDLE</th>
         <th data-col="mint">CONTRACT</th>
       </tr>
     </thead>
@@ -350,7 +349,6 @@
       <td id="holders-${t.mint}">${holdersHTML(t.holders)}</td>
       <td>${pctHTML(t.top10Pct, [40, 70])}</td>
       <td>${pctHTML(t.devPct, [5, 15])}</td>
-      <td>${riskBadgeHTML(t.bundleRisk, t.bundleDetails)}</td>
       <td><a class="contract-link" href="${gmgnUrl}" target="_blank" title="${t.mint}">${mintShort}</a></td>
     `;
   }

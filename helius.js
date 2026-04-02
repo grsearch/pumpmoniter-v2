@@ -3,12 +3,13 @@ const axios = require('axios');
 
 const PUMP_BC_PROGRAM  = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 const PUMP_AMM_PROGRAM = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA';
+const MIGRATION_WALLET = '39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg';
 
 const STANDARD_WS_URL  = (apiKey) => `wss://mainnet.helius-rpc.com/?api-key=${apiKey}`;
 const RPC_URL          = (apiKey) => `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
 
-const POLL_INTERVAL_MS = 20 * 1000;
-const SIGNATURES_LIMIT = 25;
+const POLL_INTERVAL_MS = 5 * 1000;
+const SIGNATURES_LIMIT = 100;
 const PING_INTERVAL_MS = 30 * 1000;
 
 class HeliusMonitor {
@@ -106,7 +107,7 @@ class HeliusMonitor {
   _startPolling() {
     this._pollInit().then(() => {
       this.pollTimer = setInterval(() => this._pollOnce(), POLL_INTERVAL_MS);
-      console.log(`[Helius] Polling fallback started (every ${POLL_INTERVAL_MS / 1000}s)`);
+      console.log(`[Helius] Polling fallback started (every ${POLL_INTERVAL_MS / 1000}s, migration wallet)`);
     }).catch(err => {
       console.error('[Helius] Poll init error:', err.message);
       this.pollTimer = setInterval(() => this._pollOnce(), POLL_INTERVAL_MS);
@@ -114,39 +115,38 @@ class HeliusMonitor {
     }
 
   async _pollInit() {
-    const [sigs1, sigs2] = await Promise.all([
-      this._fetchSigs(PUMP_BC_PROGRAM),
-      this._fetchSigs(PUMP_AMM_PROGRAM),
-    ]);
-    [...sigs1, ...sigs2].forEach(s => this.seenSigs.add(s.signature));
-    console.log(`[Helius] Polling baseline: ${this.seenSigs.size} sigs`);
+    // 轮询迁移钱包（只做迁移，不会被买卖交易淹没）
+    const sigs = await this._fetchSigs(MIGRATION_WALLET);
+    sigs.forEach(s => this.seenSigs.add(s.signature));
+    console.log(`[Helius] Polling baseline: ${this.seenSigs.size} sigs (migration wallet)`);
   }
 
   async _pollOnce() {
-    try { await this._processNewSigs(PUMP_BC_PROGRAM); }
-    catch (err) { console.error('[Helius] Poll error:', err.message); }
+    try {
+      await this._processNewSigs(MIGRATION_WALLET);
+    } catch (err) { console.error('[Helius] Poll error:', err.message); }
   }
 
-  async _fetchSigs(program) {
+  async _fetchSigs(address) {
     const res = await axios.post(this.rpcUrl, {
       jsonrpc: '2.0', id: 1,
       method: 'getSignaturesForAddress',
-      params: [program, { limit: SIGNATURES_LIMIT, commitment: 'confirmed' }],
+      params: [address, { limit: SIGNATURES_LIMIT, commitment: 'confirmed' }],
     }, { timeout: 10000 });
     return res.data?.result || [];
   }
 
-  async _processNewSigs(program) {
-    const sigs = await this._fetchSigs(program);
+  async _processNewSigs(address) {
+    const sigs = await this._fetchSigs(address);
     for (const info of sigs) {
       if (!info.signature || this.seenSigs.has(info.signature)) continue;
       this.seenSigs.add(info.signature);
       if (info.err) continue;
       this._parseTxFromRpc(info.signature).catch(() => {});
     }
-    if (this.seenSigs.size > 2000) {
+    if (this.seenSigs.size > 5000) {
       const arr = Array.from(this.seenSigs);
-      arr.slice(0, 1000).forEach(s => this.seenSigs.delete(s));
+      arr.slice(0, 2500).forEach(s => this.seenSigs.delete(s));
     }
   }
 
