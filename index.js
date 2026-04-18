@@ -8,7 +8,7 @@ const axios = require('axios');
 const { HeliusMonitor } = require('./helius');
 const { BirdeyeService } = require('./birdeye');
 const { SafetyChecker } = require('./safetyChecker');
-const { TokenStore, STABLE_INTERVAL_MS } = require('./tokenStore');
+const { TokenStore, FIRST_CHECK_MS, SECOND_CHECK_MS, PHASE_PENDING, PHASE_WATCH, PHASE_DONE } = require('./tokenStore');
 const { WebhookService } = require('./webhook');
 
 const app = express();
@@ -18,17 +18,8 @@ const wss = new WebSocket.Server({ server });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-const store = new TokenStore();
-
-function broadcast(type, data) {
-  const msg = JSON.stringify({ type, data, ts: Date.now() });
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) client.send(msg);
-  });
-}
-
+const store   = new TokenStore();
 const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
-
 const birdeye = new BirdeyeService(process.env.BIRDEYE_API_KEY);
 const helius  = new HeliusMonitor(process.env.HELIUS_API_KEY);
 const safety  = new SafetyChecker(HELIUS_RPC_URL, birdeye);
@@ -42,16 +33,13 @@ const WORK_START_BJT = { hour: 7,  minute: 0  };
 const WORK_STOP_BJT  = { hour: 23, minute: 30 };
 
 let isWorking = false;
-let refreshTimer = null;
-let holderRefreshTimer = null;
+let phaseCheckTimer = null;  // 统一定时扫描器（每30秒检查到期的 token）
 
 function isWorkingHour() {
   const nowUTC = new Date();
-  const bjtMs = nowUTC.getTime() + 8 * 60 * 60 * 1000;
-  const bjt = new Date(bjtMs);
-  const h = bjt.getUTCHours();
-  const m = bjt.getUTCMinutes();
-  const totalMin = h * 60 + m;
+  const bjtMs  = nowUTC.getTime() + 8 * 60 * 60 * 1000;
+  const bjt    = new Date(bjtMs);
+  const totalMin = bjt.getUTCHours() * 60 + bjt.getUTCMinutes();
   const startMin = WORK_START_BJT.hour * 60 + WORK_START_BJT.minute;
   const stopMin  = WORK_STOP_BJT.hour  * 60 + WORK_STOP_BJT.minute;
   return totalMin >= startMin && totalMin < stopMin;
@@ -59,11 +47,18 @@ function isWorkingHour() {
 
 function bjtTimeStr() {
   const nowUTC = new Date();
-  const bjtMs = nowUTC.getTime() + 8 * 60 * 60 * 1000;
-  const bjt = new Date(bjtMs);
+  const bjtMs  = nowUTC.getTime() + 8 * 60 * 60 * 1000;
+  const bjt    = new Date(bjtMs);
   const h = String(bjt.getUTCHours()).padStart(2, '0');
   const m = String(bjt.getUTCMinutes()).padStart(2, '0');
   return `${h}:${m} BJT`;
+}
+
+function broadcast(type, data) {
+  const msg = JSON.stringify({ type, data, ts: Date.now() });
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) client.send(msg);
+  });
 }
 
 function startWork() {
@@ -71,8 +66,8 @@ function startWork() {
   isWorking = true;
   console.log(`\n▶️  [Schedule] Work START at ${bjtTimeStr()} — monitoring resumed`);
   helius.connect();
-  if (!refreshTimer) refreshTimer = setInterval(refreshLoop, 30 * 1000);
-  if (!holderRefreshTimer) holderRefreshTimer = setInterval(holderStatsRefreshLoop, 90 * 1000);
+  // 每 30 秒扫描一次，检查是否有 token 到达检测时间点
+  if (!phaseCheckTimer) phaseCheckTimer = setInterval(phaseCheckLoop, 30 * 1000);
   broadcast('schedule', { working: true, message: '监控已开启 (BJT 07:00)' });
 }
 
@@ -81,8 +76,7 @@ function stopWork() {
   isWorking = false;
   console.log(`\n⏸️  [Schedule] Work STOP at ${bjtTimeStr()} — monitoring paused`);
   helius.stop();
-  if (refreshTimer)       { clearInterval(refreshTimer);       refreshTimer = null; }
-  if (holderRefreshTimer) { clearInterval(holderRefreshTimer); holderRefreshTimer = null; }
+  if (phaseCheckTimer) { clearInterval(phaseCheckTimer); phaseCheckTimer = null; }
   store.getAll().forEach(t => {
     store.remove(t.mint);
     broadcast('token_removed', { mint: t.mint, reason: '休市清空' });
@@ -94,14 +88,14 @@ function startScheduler() {
   const shouldWork = isWorkingHour();
   console.log(`[Schedule] Init at ${bjtTimeStr()} — should work: ${shouldWork}`);
   if (shouldWork) startWork();
-  else { console.log(`[Schedule] Outside working hours, paused until BJT 07:00`); isWorking = false; }
+  else console.log(`[Schedule] Outside working hours, paused until BJT 07:00`);
   const msToNextMinute = 60000 - (Date.now() % 60000);
   setTimeout(() => { checkSchedule(); setInterval(checkSchedule, 60 * 1000); }, msToNextMinute);
 }
 
 function checkSchedule() {
   const shouldWork = isWorkingHour();
-  if (shouldWork && !isWorking) startWork();
+  if (shouldWork && !isWorking)  startWork();
   else if (!shouldWork && isWorking) stopWork();
 }
 
@@ -149,13 +143,13 @@ app.get('/api/tokens', (req, res) => res.json(store.getAll()));
 
 app.get('/api/stats', (req, res) => {
   res.json({
-    total: store.size(),
+    total:          store.size(),
     heliusConnected: helius.isConnected(),
-    uptime: Math.floor(process.uptime()),
+    uptime:         Math.floor(process.uptime()),
     webhookEnabled: webhook.enabled,
-    webhookFired: webhook.getFired().length,
-    working: isWorking,
-    currentBJT: bjtTimeStr(),
+    webhookFired:   webhook.getFired().length,
+    working:        isWorking,
+    currentBJT:     bjtTimeStr(),
   });
 });
 
@@ -163,16 +157,17 @@ app.get('/api/webhook/fired', (req, res) => {
   res.json({ fired: webhook.getFired() });
 });
 
-// ========== Process new migration event ==========
+// =====================================================
+// ✅ 处理迁移事件：立即收录，不查 FDV/LP
+// =====================================================
 async function processNewToken(mintAddress, symbol, name, devAddress) {
   if (!isWorking) return;
   if (store.get(mintAddress)) return;
 
-  const detectTime = Date.now();
-  console.log(`\n[NEW] Migration: ${mintAddress} dev=${devAddress || 'unknown'}`);
+  console.log(`\n[NEW] Migration detected: ${mintAddress} dev=${devAddress || 'unknown'}`);
 
   try {
-    // 🛡️ Authority check only（~1-2s）
+    // 🛡️ Authority check（~1-2s，仅检查权限）
     const safetyResult = await safety.check(mintAddress);
     if (!safetyResult.safe) {
       console.log(`[REJECT] ${mintAddress}: ${safetyResult.reason}`);
@@ -180,139 +175,180 @@ async function processNewToken(mintAddress, symbol, name, devAddress) {
       return;
     }
 
-    // 获取 Birdeye 数据（~1-2s）
-    const tokenData = await birdeye.getTokenData(mintAddress);
-    if (!tokenData) { console.log(`[SKIP] ${mintAddress} no token data`); return; }
-
-    const birdeyeHolders = Number(tokenData.holder) || 0;
+    // 获取基础元数据（名称、logo 等），但不依赖 FDV/LP 决定是否收录
+    let tokenMeta = null;
+    try {
+      tokenMeta = await birdeye.getTokenData(mintAddress);
+    } catch (e) {
+      console.warn(`[META] ${mintAddress} birdeye meta fetch failed: ${e.message}`);
+    }
 
     const entry = {
       mint:           mintAddress,
-      symbol:         tokenData.symbol || symbol || '???',
-      name:           tokenData.name   || name   || '',
-      logoURI:        tokenData.logoURI || '',
+      symbol:         tokenMeta?.symbol  || symbol || '???',
+      name:           tokenMeta?.name    || name   || '',
+      logoURI:        tokenMeta?.logoURI || '',
       addedAt:        Date.now(),
-      lp:             Number(tokenData.liquidity)      || 0,
-      fdv:            Number(tokenData.fdv)            || 0,
-      holders:        birdeyeHolders,
+      // FDV/LP 暂不赋值，等 5 分钟后第一次检测再填
+      lp:             0,
+      fdv:            0,
+      holders:        0,
       top10Pct:       null,
       devPct:         null,
       devAddress:     devAddress || null,
-      price:          Number(tokenData.price)          || 0,
-      priceChange24h: Number(tokenData.priceChange24h) || 0,
+      price:          Number(tokenMeta?.price) || 0,
+      priceChange24h: Number(tokenMeta?.priceChange24h) || 0,
     };
 
     store.add(entry);
-    store.recordLpFdv(mintAddress, entry.lp, entry.fdv);
     broadcast('token_added', entry);
 
-    const elapsed = Date.now() - detectTime;
-    console.log(`[ADD] $${entry.symbol} | LP=$${fmtNum(entry.lp)} FDV=$${fmtNum(entry.fdv)} | holders=${birdeyeHolders} | ${elapsed}ms`);
+    const firstCheckSec = Math.round(FIRST_CHECK_MS / 1000);
+    console.log(`[ADD] $${entry.symbol} (${mintAddress.slice(0,8)}...) — phase=pending, 第一次检测将在 ${firstCheckSec}s 后执行`);
 
-    // 🔔 立即检查 webhook（不等 30s 定期循环）
-    webhook.check(entry, null).catch(() => {});
-
-    // 🔄 异步补充 holder 详细数据（top10、devPct），完成后再试一次 webhook
-    fetchHolderStats(mintAddress, devAddress).then(stats => {
-      if (!store.get(mintAddress)) return;
-      store.update(mintAddress, stats);
-      const updated = store.get(mintAddress);
-      broadcast('token_updated', updated);
-      webhook.check(updated, store.getStableReading(mintAddress)).catch(() => {});
-    });
+    // ⏱️ 精确在 5 分钟时触发第一次检测（不依赖轮询误差）
+    const delay1 = FIRST_CHECK_MS - (Date.now() - entry.addedAt);
+    setTimeout(() => runPhase1Check(mintAddress), Math.max(delay1, 0));
 
   } catch (err) {
     console.error(`[ERROR] processNewToken ${mintAddress}:`, err.message);
   }
 }
 
-// ========== Data refresh loop (Birdeye, 每30秒) ==========
-async function refreshLoop() {
+// =====================================================
+// ⏱️ 阶段 1：5 分钟后第一次检测 FDV/LP
+// =====================================================
+async function runPhase1Check(mint) {
+  const raw = store._getRaw(mint);
+  if (!raw) return;  // 已被移除（如休市清空）
+  if (raw.phase !== PHASE_PENDING) return;
+
+  console.log(`\n[PHASE1] 🔍 5min check: ${mint.slice(0,8)}... ($${raw.symbol})`);
+
+  try {
+    const data = await birdeye.getTokenData(mint);
+    const lp  = Number(data?.liquidity) || 0;
+    const fdv = Number(data?.fdv)       || 0;
+
+    store.update(mint, {
+      lp, fdv,
+      holders:        Number(data?.holder)          || 0,
+      price:          Number(data?.price)            || 0,
+      priceChange24h: Number(data?.priceChange24h)   || 0,
+      logoURI:        data?.logoURI || raw.logoURI,
+      firstCheckAt:   Date.now(),
+    });
+
+    const phase1MinFdv = webhook.phase1MinFdv;
+    const phase1MinLp  = webhook.phase1MinLp;
+
+    if (fdv >= phase1MinFdv && lp >= phase1MinLp) {
+      // ✅ 通过第一次检测，留存并安排 12 小时后第二次检测
+      store.update(mint, { phase: PHASE_WATCH });
+      const updated = store.get(mint);
+      broadcast('token_updated', updated);
+
+      const remaining12h = SECOND_CHECK_MS - (Date.now() - raw.addedAt);
+      console.log(`[PHASE1] ✅ $${raw.symbol} PASS — FDV=$${fmtNum(fdv)} LP=$${fmtNum(lp)} | 进入 watch 阶段，${Math.round(remaining12h/3600000*10)/10}h 后第二次检测`);
+
+      setTimeout(() => runPhase2Check(mint), Math.max(remaining12h, 0));
+
+    } else {
+      // ❌ 不符合，退出
+      const reason = `Phase1 FAIL: FDV=$${fmtNum(fdv)} (需≥$${fmtNum(phase1MinFdv)}) LP=$${fmtNum(lp)} (需≥$${fmtNum(phase1MinLp)})`;
+      console.log(`[PHASE1] ❌ $${raw.symbol} — ${reason}`);
+      store.remove(mint);
+      broadcast('token_removed', { mint, reason });
+    }
+
+  } catch (err) {
+    console.error(`[PHASE1] Error for ${mint}:`, err.message);
+    // 查询失败时保守处理：移除
+    store.remove(mint);
+    broadcast('token_removed', { mint, reason: 'Phase1 API error' });
+  }
+}
+
+// =====================================================
+// ⏱️ 阶段 2：12 小时后第二次检测 FDV/LP
+// =====================================================
+async function runPhase2Check(mint) {
+  const raw = store._getRaw(mint);
+  if (!raw) return;  // 已被移除（如休市清空）
+  if (raw.phase !== PHASE_WATCH) return;
+
+  console.log(`\n[PHASE2] 🔍 12h check: ${mint.slice(0,8)}... ($${raw.symbol})`);
+
+  try {
+    const data = await birdeye.getTokenData(mint);
+    const lp  = Number(data?.liquidity) || 0;
+    const fdv = Number(data?.fdv)       || 0;
+
+    store.update(mint, {
+      lp, fdv,
+      holders:        Number(data?.holder)         || 0,
+      price:          Number(data?.price)           || 0,
+      priceChange24h: Number(data?.priceChange24h)  || 0,
+      logoURI:        data?.logoURI || raw.logoURI,
+      phase:          PHASE_DONE,
+      secondCheckAt:  Date.now(),
+    });
+
+    const updated = store.get(mint);
+
+    // 同时补充 holder 详情
+    const holderStats = await fetchHolderStats(mint, raw.devAddress || null);
+    if (store._getRaw(mint)) {
+      store.update(mint, holderStats);
+    }
+    const finalToken = store.get(mint);
+
+    broadcast('token_updated', finalToken || updated);
+
+    // 检查是否触发 webhook
+    const fired = await webhook.checkAndFire(finalToken || updated);
+
+    if (fired) {
+      console.log(`[PHASE2] ✅ $${raw.symbol} PASS & webhook fired — FDV=$${fmtNum(fdv)} LP=$${fmtNum(lp)}`);
+    } else {
+      console.log(`[PHASE2] ⬇️  $${raw.symbol} NO webhook — FDV=$${fmtNum(fdv)} LP=$${fmtNum(lp)}`);
+    }
+
+  } catch (err) {
+    console.error(`[PHASE2] Error for ${mint}:`, err.message);
+  }
+
+  // 无论结果如何，退出监控
+  console.log(`[PHASE2] 🏁 $${raw.symbol} — 退出监控系统`);
+  store.remove(mint);
+  broadcast('token_removed', { mint, reason: 'Phase2 完成，退出监控' });
+}
+
+// =====================================================
+// 🔄 定期扫描（每 30 秒）：兜底补救，防止 setTimeout 丢失
+//    正常情况下 setTimeout 已精准触发，此处作为保险
+// =====================================================
+async function phaseCheckLoop() {
   if (!isWorking) return;
   const tokens = store.getAll();
-  if (tokens.length === 0) return;
+  const now = Date.now();
 
   for (const token of tokens) {
-    try {
-      const data = await birdeye.getTokenData(token.mint);
-      if (!data) { await sleep(300); continue; }
-
-      const newLp  = Number(data.liquidity ?? token.lp)  || 0;
-      const newFdv = Number(data.fdv       ?? token.fdv) || 0;
-      const birdeyeHolders = Number(data.holder) || 0;
-
-      store.update(token.mint, {
-        lp:             newLp,
-        fdv:            newFdv,
-        holders:        birdeyeHolders || token.holders,
-        price:          Number(data.price          ?? token.price)          || 0,
-        priceChange24h: Number(data.priceChange24h ?? token.priceChange24h) || 0,
-        logoURI:        data.logoURI || token.logoURI,
-      });
-
-      store.recordLpFdv(token.mint, newLp, newFdv);
-
-      const updated = store.get(token.mint);
-      if (!updated) { await sleep(300); continue; }
-
-      const stable = store.getStableReading(token.mint);
-
-      if (shouldExit(updated, stable)) {
-        const reason = getExitReason(updated, stable);
-        console.log(`[EXIT] $${updated.symbol} — ${reason}`);
-        store.remove(token.mint);
-        broadcast('token_removed', { mint: token.mint, reason });
-        await sleep(300);
-        continue;
+    if (token.phase === PHASE_PENDING) {
+      const due = token.addedAt + FIRST_CHECK_MS;
+      // 如果已超时 5 分钟以上还在 pending（setTimeout 未触发），补救执行
+      if (now >= due + 30000) {
+        console.log(`[LOOP] 补救执行 Phase1 for $${token.symbol}`);
+        runPhase1Check(token.mint).catch(console.error);
       }
-
-      broadcast('token_updated', updated);
-      webhook.check(updated, stable).catch(() => {});
-      await sleep(300);
-
-    } catch (err) {
-      console.error(`[ERROR] refreshLoop $${token.symbol}:`, err.message);
-      await sleep(300);
+    } else if (token.phase === PHASE_WATCH) {
+      const due = token.addedAt + SECOND_CHECK_MS;
+      if (now >= due + 30000) {
+        console.log(`[LOOP] 补救执行 Phase2 for $${token.symbol}`);
+        runPhase2Check(token.mint).catch(console.error);
+      }
     }
   }
-}
-
-// ========== Holder stats 刷新（每90秒）==========
-async function holderStatsRefreshLoop() {
-  if (!isWorking) return;
-  const tokens = store.getAll();
-  for (const token of tokens) {
-    const stats = await fetchHolderStats(token.mint, token.devAddress || null);
-    if (!store.get(token.mint)) continue;
-    const changed =
-      stats.holders  !== token.holders  ||
-      stats.top10Pct !== token.top10Pct ||
-      stats.devPct   !== token.devPct;
-    if (changed) {
-      store.update(token.mint, stats);
-      const updated = store.get(token.mint);
-      broadcast('token_updated', updated);
-      webhook.check(updated, store.getStableReading(token.mint)).catch(() => {});
-    }
-    await sleep(1000);
-  }
-}
-
-// ========== 退出条件 ==========
-function getAgeHours(token) { return (Date.now() - token.addedAt) / 3600000; }
-
-function shouldExit(token, stable) {
-  const ageH = getAgeHours(token);
-  if (ageH > 1) return true;
-  if (ageH > 0.25 && stable && stable.fdv > 0 && stable.fdv < 20000) return true;
-  return false;
-}
-
-function getExitReason(token, stable) {
-  const ageH = getAgeHours(token);
-  if (ageH > 1) return 'Age > 1H';
-  if (ageH > 0.25 && stable && stable.fdv < 20000) return `FDV $${fmtNum(stable.fdv)} < $20K (age>15min)`;
-  return 'Unknown';
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -347,13 +383,14 @@ wss.on('connection', (ws) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`\n🚀 Pump Monitor running at http://localhost:${PORT}`);
+  console.log(`\n🚀 Pump Monitor v3 running at http://localhost:${PORT}`);
   console.log(`📡 Listening for pump.fun migrations via Helius...`);
-  console.log(`🔑 Helius:   ${process.env.HELIUS_API_KEY   ? '✓' : '✗ MISSING'}`);
-  console.log(`🔑 Birdeye:  ${process.env.BIRDEYE_API_KEY  ? '✓' : '✗ MISSING'}`);
+  console.log(`🔑 Helius:   ${process.env.HELIUS_API_KEY  ? '✓' : '✗ MISSING'}`);
+  console.log(`🔑 Birdeye:  ${process.env.BIRDEYE_API_KEY ? '✓' : '✗ MISSING'}`);
   console.log(`🔔 Webhook:  ${process.env.WEBHOOK_URL ? `✓ → ${process.env.WEBHOOK_URL}` : '✗ not set'}`);
-  console.log(`   Thresholds: FDV≥$${process.env.WEBHOOK_MIN_FDV || 15000} LP≥$${process.env.WEBHOOK_MIN_LP || 5000} Holders≥${process.env.WEBHOOK_MIN_HOLDERS || 10}`);
-  console.log(`🛡️  Safety: authority check only`);
-  console.log(`⏱  Stable check interval: ${STABLE_INTERVAL_MS / 60000} min`);
+  console.log(`\n📋 监控逻辑：`);
+  console.log(`   ① 迁移检测到 → 立即收录（不查 FDV/LP）`);
+  console.log(`   ② +5分钟 → 第一次检测: FDV≥$${webhook.phase1MinFdv} 且 LP≥$${webhook.phase1MinLp} → 留存，否则退出`);
+  console.log(`   ③ +12小时 → 第二次检测: FDV>$${webhook.phase2MinFdv} 且 LP>$${webhook.phase2MinLp} → 发送 webhook（无论是否符合都退出）`);
   console.log(`🕐 Schedule: BJT 07:00 – 23:30\n`);
 });

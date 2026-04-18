@@ -1,17 +1,26 @@
 /**
- * In-memory token store
+ * In-memory token store — 两阶段定时检测版本
  *
- * 容错机制：
- * 每个 token 维护 lpFdvHistory 数组，记录最近 N 次 Birdeye 返回的
- * { lp, fdv, ts } 读数。退出判断和 webhook 触发都基于"稳定读数"：
- *   稳定读数 = 历史中存在两条间隔 >= STABLE_INTERVAL_MS 的记录
- * 这样单次 API 抖动（返回 0 或异常低值）不会误触发退出或 webhook。
+ * 阶段 1（收录后 +5 分钟）：第一次检测 FDV/LP
+ *   - FDV >= $15,000 且 LP >= $5,000 → 留存进入阶段 2
+ *   - 不符合 → 退出
  *
- * 注意：lpFdvHistory 不对外暴露（getAll/toPublic 会剔除），避免浪费带宽。
+ * 阶段 2（收录后 +12 小时）：第二次检测 FDV/LP
+ *   - FDV > $50,000 且 LP > $10,000 → 发送 webhook
+ *   - 无论是否符合，退出监控
+ *
+ * 12小时内不做任何实时 FDV/LP API 查询，节省配额。
  */
 
-const HISTORY_MAX = 5;
-const STABLE_INTERVAL_MS = 5 * 60 * 1000; // 5 分钟
+// 第一次检测：收录后 5 分钟
+const FIRST_CHECK_MS  = 5 * 60 * 1000;
+// 第二次检测：收录后 12 小时
+const SECOND_CHECK_MS = 12 * 60 * 60 * 1000;
+
+// token 阶段
+const PHASE_PENDING = 'pending';   // 等待第一次检测
+const PHASE_WATCH   = 'watch';     // 通过第一次，等待第二次
+const PHASE_DONE    = 'done';      // 已完成（即将退出）
 
 class TokenStore {
   constructor() {
@@ -21,7 +30,10 @@ class TokenStore {
   add(token) {
     this.tokens.set(token.mint, {
       ...token,
-      lpFdvHistory: [],
+      addedAt:       token.addedAt || Date.now(),
+      phase:         PHASE_PENDING,
+      firstCheckAt:  null,
+      secondCheckAt: null,
     });
   }
 
@@ -37,40 +49,11 @@ class TokenStore {
   update(mint, fields) {
     const existing = this.tokens.get(mint);
     if (!existing) return;
-    const { lpFdvHistory: _ignored, ...safeFields } = fields;
     this.tokens.set(mint, {
       ...existing,
-      ...safeFields,
-      lpFdvHistory: existing.lpFdvHistory,
+      ...fields,
       updatedAt: Date.now(),
     });
-  }
-
-  recordLpFdv(mint, lp, fdv) {
-    const token = this.tokens.get(mint);
-    if (!token) return;
-
-    const history = [...token.lpFdvHistory];
-    history.push({ lp, fdv, ts: Date.now() });
-    if (history.length > HISTORY_MAX) history.shift();
-
-    this.tokens.set(mint, { ...token, lpFdvHistory: history });
-  }
-
-  getStableReading(mint) {
-    const token = this.tokens.get(mint);
-    if (!token) return null;
-
-    const history = token.lpFdvHistory;
-    if (history.length < 2) return null;
-
-    const latest = history[history.length - 1];
-    for (let i = history.length - 2; i >= 0; i--) {
-      if (latest.ts - history[i].ts >= STABLE_INTERVAL_MS) {
-        return { lp: latest.lp, fdv: latest.fdv, ts: latest.ts };
-      }
-    }
-    return null;
   }
 
   remove(mint) {
@@ -84,13 +67,24 @@ class TokenStore {
   }
 
   _toPublic(t) {
-    const { lpFdvHistory: _ignored, ...pub } = t;
-    return pub;
+    return { ...t };
   }
 
   size() {
     return this.tokens.size;
   }
+
+  msUntilFirstCheck(mint) {
+    const t = this.tokens.get(mint);
+    if (!t) return null;
+    return (t.addedAt + FIRST_CHECK_MS) - Date.now();
+  }
+
+  msUntilSecondCheck(mint) {
+    const t = this.tokens.get(mint);
+    if (!t) return null;
+    return (t.addedAt + SECOND_CHECK_MS) - Date.now();
+  }
 }
 
-module.exports = { TokenStore, STABLE_INTERVAL_MS };
+module.exports = { TokenStore, FIRST_CHECK_MS, SECOND_CHECK_MS, PHASE_PENDING, PHASE_WATCH, PHASE_DONE };
