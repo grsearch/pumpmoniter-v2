@@ -12,7 +12,7 @@
       --bg: #080b10; --bg2: #0d1117; --bg3: #131920;
       --border: rgba(0, 255, 136, 0.12); --border-bright: rgba(0, 255, 136, 0.35);
       --green: #00ff88; --green-dim: rgba(0, 255, 136, 0.6); --green-glow: rgba(0, 255, 136, 0.15);
-      --amber: #ffb300; --red: #ff4455; --cyan: #00e5ff;
+      --amber: #ffb300; --red: #ff4455; --cyan: #00e5ff; --purple: #a78bfa;
       --muted: rgba(255,255,255,0.35); --text: rgba(255,255,255,0.88);
       --font-mono: 'Space Mono', monospace; --font-sans: 'Syne', sans-serif;
     }
@@ -20,10 +20,11 @@
     body { background: var(--bg); color: var(--text); font-family: var(--font-sans); min-height: 100vh; overflow-x: hidden; }
     body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px); pointer-events: none; z-index: 1000; }
 
+    /* ── Header ── */
     header { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid var(--border); background: rgba(8,11,16,0.95); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
     .logo { display: flex; align-items: center; gap: 12px; }
     .logo-icon { width: 36px; height: 36px; background: var(--green); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); box-shadow: 0 0 20px var(--green); animation: pulse-icon 2s ease-in-out infinite; }
-    @keyframes pulse-icon { 0%, 100% { box-shadow: 0 0 20px var(--green); } 50% { box-shadow: 0 0 40px var(--green), 0 0 60px rgba(0,255,136,0.4); } }
+    @keyframes pulse-icon { 0%,100% { box-shadow: 0 0 20px var(--green); } 50% { box-shadow: 0 0 40px var(--green), 0 0 60px rgba(0,255,136,0.4); } }
     .logo-text { font-family: var(--font-sans); font-weight: 800; font-size: 22px; letter-spacing: 0.15em; color: var(--green); text-shadow: 0 0 20px rgba(0,255,136,0.5); }
     .logo-sub { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 2px; }
     .header-stats { display: flex; gap: 28px; align-items: center; }
@@ -34,8 +35,9 @@
     .ws-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
     .ws-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s infinite; }
     .ws-dot.error { background: var(--red); }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+    /* ── Filter bar ── */
     .filter-bar { padding: 14px 32px; display: flex; gap: 16px; align-items: center; border-bottom: 1px solid var(--border); background: var(--bg2); flex-wrap: wrap; }
     .filter-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap; }
     .sort-btn { font-family: var(--font-mono); font-size: 10px; padding: 5px 12px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; border-radius: 2px; letter-spacing: 0.1em; text-transform: uppercase; transition: all 0.2s; }
@@ -44,8 +46,9 @@
     .search-input:focus { border-color: var(--green); }
     .search-input::placeholder { color: var(--muted); }
 
+    /* ── Table ── */
     .table-wrapper { padding: 24px 32px; overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+    table { width: 100%; border-collapse: collapse; min-width: 960px; }
     thead tr { border-bottom: 1px solid var(--border-bright); }
     th { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; padding: 10px 14px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none; transition: color 0.2s; }
     th:hover { color: var(--green); }
@@ -60,76 +63,87 @@
     tbody tr:hover { background: rgba(255,255,255,0.025); }
     td { padding: 14px 14px; font-size: 13px; vertical-align: middle; }
 
+    /* ── Token cell ── */
     .col-symbol { display: flex; align-items: center; gap: 10px; }
     .token-logo { width: 28px; height: 28px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border); object-fit: cover; flex-shrink: 0; }
     .token-logo-placeholder { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--bg3), var(--border)); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; color: var(--muted); flex-shrink: 0; }
     .symbol-text { font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--text); letter-spacing: 0.05em; }
     .name-text { font-size: 10px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
 
-    .webhook-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; padding: 2px 7px; border-radius: 2px; color: #ff9500; background: rgba(255, 149, 0, 0.1); border: 1px solid rgba(255, 149, 0, 0.35); margin-top: 4px; animation: badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; }
+    /* source badge */
+    .source-badge { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; padding: 1px 5px; border-radius: 2px; margin-top: 3px; white-space: nowrap; }
+    .source-pump { color: #f97316; background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.3); }
+    .source-bonk { color: var(--amber); background: rgba(255,179,0,0.1); border: 1px solid rgba(255,179,0,0.3); }
+
+    /* webhook badge */
+    .webhook-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; padding: 2px 7px; border-radius: 2px; color: #ff9500; background: rgba(255,149,0,0.1); border: 1px solid rgba(255,149,0,0.35); margin-top: 4px; animation: badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; }
     @keyframes badge-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+    /* phase badge */
+    .phase-badge { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 5px; border-radius: 2px; margin-top: 3px; white-space: nowrap; }
+    .phase-pending { color: var(--muted); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+    .phase-watch { color: var(--green); background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); }
+
+    /* Age */
     .age-badge { font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: 2px; white-space: nowrap; }
     .age-fresh { color: var(--green); background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.2); }
     .age-mid { color: var(--amber); background: rgba(255,179,0,0.08); border: 1px solid rgba(255,179,0,0.2); }
     .age-old { color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
 
+    /* Numbers */
     .num { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
     .num.warning { color: var(--amber); }
     .ratio-bar { display: flex; align-items: center; gap: 8px; }
     .ratio-track { width: 50px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
     .ratio-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.5s ease; }
 
-    .contract-link { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); text-decoration: none; letter-spacing: 0.02em; padding: 3px 8px; border: 1px solid rgba(0,229,255,0.2); border-radius: 2px; transition: all 0.2s; white-space: nowrap; }
-    .contract-link:hover { background: rgba(0,229,255,0.08); border-color: var(--cyan); }
-
+    /* Holders */
     .holders-cell { display: flex; align-items: center; gap: 8px; }
     .holders-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
     .holders-bar-wrap { width: 36px; height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
     .holders-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.6s ease; }
     .holders-tier-hot { color: var(--green); } .holders-tier-hot .holders-bar-fill { background: var(--green); }
     .holders-tier-mid { color: var(--amber); } .holders-tier-mid .holders-bar-fill { background: var(--amber); }
-    .holders-tier-low { color: var(--red); } .holders-tier-low .holders-bar-fill { background: var(--red); }
+    .holders-tier-low { color: var(--red); }   .holders-tier-low .holders-bar-fill { background: var(--red); }
     .holders-tier-zero { color: var(--muted); } .holders-tier-zero .holders-bar-fill { background: rgba(255,255,255,0.15); }
     @keyframes holders-up { 0% { background: rgba(0,255,136,0.18); } 100% { background: transparent; } }
     .holders-updated { animation: holders-up 1s ease-out; }
 
-    .pct-cell { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
-    .pct-val { font-weight: 700; }
-    .pct-bar-wrap { width: 32px; height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
-    .pct-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.6s ease; }
-    .pct-safe { color: var(--green); } .pct-safe .pct-bar-fill { background: var(--green); }
-    .pct-mid { color: var(--amber); } .pct-mid .pct-bar-fill { background: var(--amber); }
-    .pct-danger { color: var(--red); } .pct-danger .pct-bar-fill { background: var(--red); }
-    .pct-none { color: var(--muted); } .pct-none .pct-bar-fill { background: rgba(255,255,255,0.15); }
+    /* ── X Mentions ── */
+    .x-cell { display: flex; align-items: center; gap: 7px; }
+    .x-icon { width: 13px; height: 13px; fill: currentColor; flex-shrink: 0; opacity: 0.75; }
+    .x-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .x-bar-wrap { width: 36px; height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+    .x-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .x-hot  { color: var(--purple); } .x-hot  .x-bar-fill { background: var(--purple); }
+    .x-mid  { color: var(--cyan); }   .x-mid  .x-bar-fill { background: var(--cyan); }
+    .x-low  { color: var(--muted); }  .x-low  .x-bar-fill { background: rgba(255,255,255,0.2); }
+    .x-none { color: rgba(255,255,255,0.2); }
+    @keyframes x-up { 0% { background: rgba(167,139,250,0.15); } 100% { background: transparent; } }
+    .x-updated { animation: x-up 1s ease-out; }
 
-    .risk-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 2px; white-space: nowrap; }
-    .risk-low { color: var(--green); background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.25); }
-    .risk-medium { color: var(--amber); background: rgba(255,179,0,0.1); border: 1px solid rgba(255,179,0,0.25); }
-    .risk-high { color: var(--red); background: rgba(255,68,85,0.1); border: 1px solid rgba(255,68,85,0.25); }
-    .risk-unknown { color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
-    .risk-loading { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+    /* Contract link */
+    .contract-link { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); text-decoration: none; letter-spacing: 0.02em; padding: 3px 8px; border: 1px solid rgba(0,229,255,0.2); border-radius: 2px; transition: all 0.2s; white-space: nowrap; }
+    .contract-link:hover { background: rgba(0,229,255,0.08); border-color: var(--cyan); }
 
-    .tip-trigger { position: relative; cursor: help; }
-    .tip-trigger .tip-content { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border-bright); border-radius: 4px; padding: 8px 12px; font-family: var(--font-mono); font-size: 10px; color: var(--text); white-space: nowrap; z-index: 50; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
-    .tip-trigger:hover .tip-content { display: block; }
-
+    /* Empty state */
     .empty-state { text-align: center; padding: 80px 32px; }
     .empty-radar { width: 120px; height: 120px; margin: 0 auto 24px; position: relative; }
     .radar-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(0,255,136,0.2); inset: 0; animation: radar-pulse 2s ease-out infinite; }
     .radar-ring:nth-child(2) { animation-delay: 0.7s; } .radar-ring:nth-child(3) { animation-delay: 1.4s; }
     @keyframes radar-pulse { 0% { transform: scale(0.3); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
-    .radar-dot { position: absolute; width: 10px; height: 10px; background: var(--green); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 16px var(--green); }
+    .radar-dot { position: absolute; width: 10px; height: 10px; background: var(--green); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 16px var(--green); }
     .empty-title { font-family: var(--font-sans); font-weight: 700; font-size: 18px; color: var(--muted); margin-bottom: 8px; }
     .empty-sub { font-family: var(--font-mono); font-size: 12px; color: rgba(255,255,255,0.2); }
 
+    /* Toast */
     #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
     .toast { font-family: var(--font-mono); font-size: 12px; padding: 10px 16px; background: var(--bg3); border: 1px solid var(--border-bright); border-radius: 2px; max-width: 360px; animation: toast-in 0.3s ease, toast-out 0.3s ease 3.7s forwards; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
     .toast.green { border-color: var(--green); color: var(--green); }
-    .toast.red { border-color: var(--red); color: var(--red); }
-    .toast.amber { border-color: var(--amber); color: var(--amber); }
-    @keyframes toast-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
-    @keyframes toast-out { to { opacity: 0; transform: translateX(20px); } }
+    .toast.red   { border-color: var(--red);   color: var(--red); }
+    .toast.amber { border-color: var(--amber);  color: var(--amber); }
+    @keyframes toast-in  { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+    @keyframes toast-out { to   { opacity: 0; transform: translateX(20px); } }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: rgba(0,255,136,0.2); border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: rgba(0,255,136,0.4); }
     @media (max-width: 768px) { header { padding: 14px 16px; } .header-stats { gap: 16px; } .table-wrapper { padding: 16px; } .filter-bar { padding: 10px 16px; } }
@@ -152,7 +166,7 @@
     </div>
     <div class="stat-pill">
       <span class="label">Skipped</span>
-      <span class="value" id="stat-skipped" style="font-size:14px; color:var(--red)">0</span>
+      <span class="value" id="stat-skipped" style="font-size:14px;color:var(--red)">0</span>
     </div>
     <div class="stat-pill">
       <span class="label">Last Update</span>
@@ -160,7 +174,7 @@
     </div>
     <div class="ws-indicator">
       <div class="ws-dot" id="ws-dot"></div>
-      <span id="ws-label" style="color: var(--muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;">CONNECTING</span>
+      <span id="ws-label" style="color:var(--muted);font-family:var(--font-mono);font-size:10px;letter-spacing:0.1em">CONNECTING</span>
     </div>
   </div>
 </header>
@@ -172,6 +186,7 @@
   <button class="sort-btn" data-sort="fdv">FDV</button>
   <button class="sort-btn" data-sort="ratio">LP/FDV</button>
   <button class="sort-btn" data-sort="holders">Holders</button>
+  <button class="sort-btn" data-sort="xMentions">X Mentions</button>
   <input class="search-input" type="text" id="search-input" placeholder="Search symbol / contract..." />
 </div>
 
@@ -185,80 +200,97 @@
         <th data-col="fdv">FDV</th>
         <th data-col="ratio">LP / FDV</th>
         <th data-col="holders">HOLDERS</th>
-        <th data-col="top10Pct">TOP 10</th>
-        <th data-col="devPct">DEV</th>
+        <th data-col="xMentions">X MENTIONS</th>
         <th data-col="mint">CONTRACT</th>
       </tr>
     </thead>
     <tbody id="token-tbody"></tbody>
   </table>
   <div id="empty-state" class="empty-state" style="display:none">
-    <div class="empty-radar"><div class="radar-ring"></div><div class="radar-ring"></div><div class="radar-ring"></div><div class="radar-dot"></div></div>
+    <div class="empty-radar">
+      <div class="radar-ring"></div><div class="radar-ring"></div><div class="radar-ring"></div>
+      <div class="radar-dot"></div>
+    </div>
     <div class="empty-title">Scanning for migrations...</div>
-    <div class="empty-sub">Waiting for pump.fun graduation events</div>
+    <div class="empty-sub">Waiting for pump.fun &amp; LetsBonk graduation events</div>
   </div>
 </div>
 
 <div id="toast-container"></div>
 
 <script>
-  let tokens = {};
-  let sortKey = 'addedAt';
-  let sortDir = -1;
-  let searchQuery = '';
-  let ws = null;
+  let tokens       = {};
+  let sortKey      = 'addedAt';
+  let sortDir      = -1;
+  let searchQuery  = '';
+  let ws           = null;
   let webhookFired = new Set();
-  let prevHolders = {};
+  let prevHolders  = {};
+  let prevXMentions = {};
   let skippedCount = 0;
 
+  // ── WebSocket ──────────────────────────────────────────
   function connectWS() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${location.host}`);
-    ws.onopen = () => setWsStatus('connected');
+    ws.onopen    = () => setWsStatus('connected');
     ws.onmessage = (e) => { try { handleMessage(JSON.parse(e.data)); } catch(err) {} };
-    ws.onclose = () => { setWsStatus('disconnected'); setTimeout(connectWS, 3000); };
-    ws.onerror = () => setWsStatus('error');
+    ws.onclose   = () => { setWsStatus('disconnected'); setTimeout(connectWS, 3000); };
+    ws.onerror   = () => setWsStatus('error');
   }
 
   function setWsStatus(status) {
-    const dot = document.getElementById('ws-dot');
+    const dot   = document.getElementById('ws-dot');
     const label = document.getElementById('ws-label');
     dot.className = 'ws-dot';
-    if (status === 'connected') { dot.classList.add('connected'); label.textContent = 'LIVE'; label.style.color = 'var(--green)'; }
-    else if (status === 'error') { dot.classList.add('error'); label.textContent = 'ERROR'; label.style.color = 'var(--red)'; }
-    else { label.textContent = 'RECONNECTING'; label.style.color = 'var(--muted)'; }
+    if (status === 'connected')    { dot.classList.add('connected'); label.textContent = 'LIVE';        label.style.color = 'var(--green)'; }
+    else if (status === 'error')   { dot.classList.add('error');     label.textContent = 'ERROR';       label.style.color = 'var(--red)'; }
+    else                           {                                  label.textContent = 'RECONNECTING'; label.style.color = 'var(--muted)'; }
   }
 
+  // ── Message handler ───────────────────────────────────
   function handleMessage(msg) {
     updateTimestamp();
     if (msg.type === 'init') {
       tokens = {};
-      msg.data.forEach(t => { tokens[t.mint] = t; prevHolders[t.mint] = t.holders; });
+      msg.data.forEach(t => {
+        tokens[t.mint]      = t;
+        prevHolders[t.mint]  = t.holders;
+        prevXMentions[t.mint] = t.xMentions;
+      });
       fetch('/api/webhook/fired').then(r => r.json()).then(d => {
         (d.fired || []).forEach(m => webhookFired.add(m));
         renderAll();
       }).catch(() => renderAll());
+
     } else if (msg.type === 'webhook_fired') {
       webhookFired.add(msg.data.mint);
       if (tokens[msg.data.mint]) updateRow(tokens[msg.data.mint]);
       showToast(`🔔 Webhook: $${msg.data.symbol}`, 'amber');
+
     } else if (msg.type === 'token_added') {
-      tokens[msg.data.mint] = msg.data;
-      prevHolders[msg.data.mint] = msg.data.holders;
-      showToast(`🟢 New: $${msg.data.symbol}`, 'green');
+      tokens[msg.data.mint]       = msg.data;
+      prevHolders[msg.data.mint]  = msg.data.holders;
+      prevXMentions[msg.data.mint] = msg.data.xMentions;
+      const src = msg.data.source === 'letsbonk' ? '🟡 LetsBonk' : '🟢 pump.fun';
+      showToast(`${src}: $${msg.data.symbol}`, 'green');
       renderAll();
+
     } else if (msg.type === 'token_updated') {
-      const oldH = prevHolders[msg.data.mint];
-      const newH = msg.data.holders;
-      const holdersChanged = oldH !== undefined && oldH !== newH;
-      prevHolders[msg.data.mint] = newH;
+      const holdersChanged  = prevHolders[msg.data.mint]   !== undefined && prevHolders[msg.data.mint]   !== msg.data.holders;
+      const xChanged        = prevXMentions[msg.data.mint] !== undefined && prevXMentions[msg.data.mint] !== msg.data.xMentions;
+      prevHolders[msg.data.mint]  = msg.data.holders;
+      prevXMentions[msg.data.mint] = msg.data.xMentions;
       tokens[msg.data.mint] = msg.data;
-      updateRow(msg.data, holdersChanged);
+      updateRow(msg.data, holdersChanged, xChanged);
+
     } else if (msg.type === 'token_removed') {
       delete tokens[msg.data.mint];
       delete prevHolders[msg.data.mint];
+      delete prevXMentions[msg.data.mint];
       removeRow(msg.data.mint);
       showToast(`🔴 Removed: ${msg.data.reason || ''}`, 'red');
+
     } else if (msg.type === 'token_skipped') {
       skippedCount++;
       document.getElementById('stat-skipped').textContent = skippedCount;
@@ -267,6 +299,7 @@
     updateStats();
   }
 
+  // ── Render ────────────────────────────────────────────
   function renderAll() {
     const tbody = document.getElementById('token-tbody');
     tbody.innerHTML = '';
@@ -283,106 +316,220 @@
     }
     list.sort((a, b) => {
       let av, bv;
-      if (sortKey === 'ratio') { av = a.fdv > 0 ? a.lp/a.fdv : 0; bv = b.fdv > 0 ? b.lp/b.fdv : 0; }
-      else { av = a[sortKey] ?? 0; bv = b[sortKey] ?? 0; }
+      if      (sortKey === 'ratio')     { av = a.fdv > 0 ? a.lp/a.fdv : 0; bv = b.fdv > 0 ? b.lp/b.fdv : 0; }
+      else if (sortKey === 'xMentions') { av = a.xMentions ?? -1; bv = b.xMentions ?? -1; }
+      else                              { av = a[sortKey] ?? 0;   bv = b[sortKey] ?? 0; }
       return (av - bv) * sortDir;
     });
     return list;
   }
 
-  function buildRow(t) { const tr = document.createElement('tr'); tr.id = `row-${t.mint}`; tr.innerHTML = rowHTML(t); return tr; }
+  function buildRow(t) {
+    const tr = document.createElement('tr');
+    tr.id = `row-${t.mint}`;
+    tr.innerHTML = rowHTML(t);
+    return tr;
+  }
 
+  // ── Cell renderers ────────────────────────────────────
   function holdersHTML(holders) {
     const n = Number(holders) || 0;
-    let tierClass;
-    if (n === 0) tierClass = 'holders-tier-zero';
-    else if (n >= 500) tierClass = 'holders-tier-hot';
-    else if (n >= 100) tierClass = 'holders-tier-mid';
-    else tierClass = 'holders-tier-low';
-    const barPct = n === 0 ? 0 : Math.min((n/1000)*100, 100).toFixed(1);
+    let tierClass = n === 0 ? 'holders-tier-zero' : n >= 500 ? 'holders-tier-hot' : n >= 100 ? 'holders-tier-mid' : 'holders-tier-low';
+    const barPct  = n === 0 ? 0 : Math.min((n / 1000) * 100, 100).toFixed(1);
     const display = n === 0 ? '—' : fmtNum(n);
-    return `<div class="holders-cell ${tierClass}"><svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor" style="opacity:0.75;flex-shrink:0"><circle cx="6.5" cy="3.5" r="2.5"/><path d="M1 12c0-3.038 2.462-5.5 5.5-5.5S12 8.962 12 12H1z"/></svg><span class="holders-val">${display}</span><div class="holders-bar-wrap"><div class="holders-bar-fill" style="width:${barPct}%"></div></div></div>`;
+    return `<div class="holders-cell ${tierClass}">
+      <svg class="x-icon" viewBox="0 0 13 13"><circle cx="6.5" cy="3.5" r="2.5"/><path d="M1 12c0-3.038 2.462-5.5 5.5-5.5S12 8.962 12 12H1z"/></svg>
+      <span class="holders-val">${display}</span>
+      <div class="holders-bar-wrap"><div class="holders-bar-fill" style="width:${barPct}%"></div></div>
+    </div>`;
   }
 
-  function pctHTML(pct, thresholds) {
-    if (pct === null || pct === undefined) return '<div class="pct-cell pct-none"><span class="pct-val">—</span></div>';
-    const val = Number(pct);
-    const [safeMax, midMax] = thresholds;
-    let cls = val <= safeMax ? 'pct-safe' : val <= midMax ? 'pct-mid' : 'pct-danger';
-    const barPct = Math.min(val, 100).toFixed(1);
-    return `<div class="pct-cell ${cls}"><div class="pct-bar-wrap"><div class="pct-bar-fill" style="width:${barPct}%"></div></div><span class="pct-val">${val.toFixed(1)}%</span></div>`;
+  function xMentionsHTML(mentions) {
+    // X (Twitter) logo SVG path
+    const xSvg = `<svg class="x-icon" viewBox="0 0 1200 1227" xmlns="http://www.w3.org/2000/svg"><path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.163 519.284ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.828Z"/></svg>`;
+    if (mentions === null || mentions === undefined) {
+      return `<div class="x-cell x-none">${xSvg}<span class="x-val">—</span></div>`;
+    }
+    const n = Number(mentions);
+    let cls  = n >= 100 ? 'x-hot' : n >= 20 ? 'x-mid' : 'x-low';
+    const barPct = Math.min((n / 200) * 100, 100).toFixed(1);
+    return `<div class="x-cell ${cls}" id="xcell-inner">
+      ${xSvg}
+      <span class="x-val">${fmtNum(n)}</span>
+      <div class="x-bar-wrap"><div class="x-bar-fill" style="width:${barPct}%"></div></div>
+    </div>`;
   }
 
-  function riskBadgeHTML(risk, details) {
-    if (!risk) return '<span class="risk-loading">…</span>';
-    const cls = `risk-${risk}`;
-    const labels = { low: '✓ LOW', medium: '⚠ MED', high: '✗ HIGH', unknown: '? N/A' };
-    const label = labels[risk] || risk.toUpperCase();
-    let tipContent = '';
-    if (details) tipContent = escHtml(details.reason || JSON.stringify(details));
-    if (tipContent) return `<div class="tip-trigger"><span class="risk-badge ${cls}">${label}</span><div class="tip-content">${tipContent}</div></div>`;
-    return `<span class="risk-badge ${cls}">${label}</span>`;
-  }
-
+  // ── Main row HTML ─────────────────────────────────────
   function rowHTML(t) {
-    const age = getAge(t.addedAt);
+    const age      = getAge(t.addedAt);
     const ageClass = age.hours < 1 ? 'age-fresh' : age.hours < 6 ? 'age-mid' : 'age-old';
-    const lp = fmtMoney(t.lp); const fdv = fmtMoney(t.fdv);
-    const ratio = t.fdv > 0 ? (t.lp / t.fdv) : 0;
+    const lp       = fmtMoney(t.lp);
+    const fdv      = fmtMoney(t.fdv);
+    const ratio    = t.fdv > 0 ? t.lp / t.fdv : 0;
     const ratioFill = Math.min(ratio * 100, 100).toFixed(1);
-    const ratioStr = (ratio * 100).toFixed(1) + '%';
-    const lpClass = t.lp < 5000 ? 'warning' : '';
-    const fdvClass = t.fdv < 30000 ? 'warning' : '';
+    const ratioStr  = (ratio * 100).toFixed(1) + '%';
+    const lpClass   = t.lp  < 5000  ? 'warning' : '';
+    const fdvClass  = t.fdv < 30000 ? 'warning' : '';
     const mintShort = t.mint ? `${t.mint.slice(0,4)}…${t.mint.slice(-4)}` : '—';
-    const gmgnUrl = `https://gmgn.ai/sol/token/${t.mint}`;
+    const gmgnUrl   = `https://gmgn.ai/sol/token/${t.mint}`;
+
     const logoHtml = t.logoURI
       ? `<img class="token-logo" src="${escHtml(t.logoURI)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'" /><div class="token-logo-placeholder" style="display:none">${(t.symbol||'?')[0]}</div>`
       : `<div class="token-logo-placeholder">${(t.symbol||'?')[0]}</div>`;
+
+    // source badge
+    const srcClass = t.source === 'letsbonk' ? 'source-bonk' : 'source-pump';
+    const srcLabel = t.source === 'letsbonk' ? '⬡ BONK'      : '◎ PUMP';
+    const sourceBadge = `<div class="source-badge ${srcClass}">${srcLabel}</div>`;
+
+    // phase badge
+    const phaseLabel = t.phase === 'watch' ? '● WATCH' : '○ PENDING';
+    const phaseCls   = t.phase === 'watch' ? 'phase-watch' : 'phase-pending';
+    const phaseBadge = `<div class="phase-badge ${phaseCls}">${phaseLabel}</div>`;
+
     const webhookBadge = webhookFired.has(t.mint) ? `<div class="webhook-badge">🔔 SENT</div>` : '';
 
     return `
-      <td><div class="col-symbol">${logoHtml}<div><div class="symbol-text">$${escHtml(t.symbol || '???')}</div><div class="name-text">${escHtml(t.name || '')}</div>${webhookBadge}</div></div></td>
+      <td>
+        <div class="col-symbol">
+          ${logoHtml}
+          <div>
+            <div class="symbol-text">$${escHtml(t.symbol || '???')}</div>
+            <div class="name-text">${escHtml(t.name || '')}</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">${sourceBadge}${phaseBadge}${webhookBadge}</div>
+          </div>
+        </div>
+      </td>
       <td><span class="age-badge ${ageClass}">${age.text}</span></td>
       <td><span class="num ${lpClass}">$${lp}</span></td>
       <td><span class="num ${fdvClass}">$${fdv}</span></td>
-      <td><div class="ratio-bar"><div class="ratio-track"><div class="ratio-fill" style="width:${ratioFill}%"></div></div><span class="num">${ratioStr}</span></div></td>
+      <td>
+        <div class="ratio-bar">
+          <div class="ratio-track"><div class="ratio-fill" style="width:${ratioFill}%"></div></div>
+          <span class="num">${ratioStr}</span>
+        </div>
+      </td>
       <td id="holders-${t.mint}">${holdersHTML(t.holders)}</td>
-      <td>${pctHTML(t.top10Pct, [40, 70])}</td>
-      <td>${pctHTML(t.devPct, [5, 15])}</td>
+      <td id="xcell-${t.mint}">${xMentionsHTML(t.xMentions)}</td>
       <td><a class="contract-link" href="${gmgnUrl}" target="_blank" title="${t.mint}">${mintShort}</a></td>
     `;
   }
 
-  function updateRow(t, holdersChanged) {
+  function updateRow(t, holdersChanged, xChanged) {
     const tr = document.getElementById(`row-${t.mint}`);
     if (!tr) { renderAll(); return; }
     tr.innerHTML = rowHTML(t);
     tr.classList.add('updated-flash');
     setTimeout(() => tr.classList.remove('updated-flash'), 800);
-    if (holdersChanged) { const hCell = document.getElementById(`holders-${t.mint}`); if (hCell) { hCell.classList.add('holders-updated'); setTimeout(() => hCell.classList.remove('holders-updated'), 1000); } }
+    if (holdersChanged) {
+      const hCell = document.getElementById(`holders-${t.mint}`);
+      if (hCell) { hCell.classList.add('holders-updated'); setTimeout(() => hCell.classList.remove('holders-updated'), 1000); }
+    }
+    if (xChanged) {
+      const xCell = document.getElementById(`xcell-${t.mint}`);
+      if (xCell) { xCell.classList.add('x-updated'); setTimeout(() => xCell.classList.remove('x-updated'), 1000); }
+    }
     updateTimestamp();
   }
 
   function removeRow(mint) {
     const tr = document.getElementById(`row-${mint}`);
-    if (tr) { tr.style.transition = 'opacity 0.5s, transform 0.5s'; tr.style.opacity = '0'; tr.style.transform = 'translateX(20px)'; setTimeout(() => tr.remove(), 500); }
+    if (tr) {
+      tr.style.transition = 'opacity 0.5s, transform 0.5s';
+      tr.style.opacity = '0';
+      tr.style.transform = 'translateX(20px)';
+      setTimeout(() => tr.remove(), 500);
+    }
     toggleEmptyState(); updateStats();
   }
 
-  function toggleEmptyState() { document.getElementById('empty-state').style.display = document.getElementById('token-tbody').children.length > 0 ? 'none' : 'block'; }
+  // ── Utilities ─────────────────────────────────────────
+  function toggleEmptyState() {
+    document.getElementById('empty-state').style.display =
+      document.getElementById('token-tbody').children.length > 0 ? 'none' : 'block';
+  }
 
-  function getAge(addedAt) { const ms = Date.now() - addedAt; const mins = Math.floor(ms/60000); const hours = ms/3600000; let text; if (mins < 60) text = `${mins}m`; else if (hours < 24) text = `${hours.toFixed(1)}h`; else text = `${(hours/24).toFixed(1)}d`; return { text, hours, mins }; }
-  function fmtMoney(n) { if (!n) return '0'; if (n >= 1e6) return (n/1e6).toFixed(2)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'K'; return n.toFixed(0); }
-  function fmtNum(n) { if (n == null) return '—'; if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'K'; return n.toString(); }
-  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function updateStats() { document.getElementById('stat-count').textContent = Object.keys(tokens).length; }
+  function getAge(addedAt) {
+    const ms = Date.now() - addedAt;
+    const mins = Math.floor(ms / 60000);
+    const hours = ms / 3600000;
+    let text;
+    if (mins < 60)      text = `${mins}m`;
+    else if (hours < 24) text = `${hours.toFixed(1)}h`;
+    else                 text = `${(hours / 24).toFixed(1)}d`;
+    return { text, hours, mins };
+  }
+
+  function fmtMoney(n) {
+    if (!n) return '0';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return n.toFixed(0);
+  }
+
+  function fmtNum(n) {
+    if (n == null) return '—';
+    if (n >= 1e6)  return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3)  return (n / 1e3).toFixed(1) + 'K';
+    return n.toString();
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function updateStats()     { document.getElementById('stat-count').textContent = Object.keys(tokens).length; }
   function updateTimestamp() { document.getElementById('stat-time').textContent = new Date().toTimeString().slice(0,8); }
-  function showToast(msg, type='green') { const c = document.getElementById('toast-container'); const d = document.createElement('div'); d.className = `toast ${type}`; d.textContent = msg; c.appendChild(d); setTimeout(() => d.remove(), 4200); }
+  function showToast(msg, type = 'green') {
+    const c = document.getElementById('toast-container');
+    const d = document.createElement('div');
+    d.className = `toast ${type}`;
+    d.textContent = msg;
+    c.appendChild(d);
+    setTimeout(() => d.remove(), 4200);
+  }
 
-  document.querySelectorAll('.sort-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); const key = btn.dataset.sort; if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; } renderAll(); }); });
-  document.getElementById('search-input').addEventListener('input', (e) => { searchQuery = e.target.value.trim(); renderAll(); });
-  document.querySelectorAll('th[data-col]').forEach(th => { th.addEventListener('click', () => { const col = th.dataset.col; document.querySelectorAll('th').forEach(t => t.classList.remove('sorted', 'asc')); if (sortKey === col) sortDir *= -1; else { sortKey = col; sortDir = -1; } th.classList.add('sorted'); if (sortDir === 1) th.classList.add('asc'); renderAll(); }); });
-  setInterval(() => { document.querySelectorAll('[id^="row-"]').forEach(tr => { const mint = tr.id.replace('row-',''); const t = tokens[mint]; if (!t) return; const ageTd = tr.children[1]; if (!ageTd) return; const age = getAge(t.addedAt); const ageClass = age.hours < 1 ? 'age-fresh' : age.hours < 6 ? 'age-mid' : 'age-old'; ageTd.innerHTML = `<span class="age-badge ${ageClass}">${age.text}</span>`; }); }, 30000);
+  // ── Sort buttons ──────────────────────────────────────
+  document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const key = btn.dataset.sort;
+      if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+      renderAll();
+    });
+  });
+
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim();
+    renderAll();
+  });
+
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      document.querySelectorAll('th').forEach(t => t.classList.remove('sorted','asc'));
+      if (sortKey === col) sortDir *= -1; else { sortKey = col; sortDir = -1; }
+      th.classList.add('sorted');
+      if (sortDir === 1) th.classList.add('asc');
+      renderAll();
+    });
+  });
+
+  // Age refresh every 30s
+  setInterval(() => {
+    document.querySelectorAll('[id^="row-"]').forEach(tr => {
+      const mint = tr.id.replace('row-', '');
+      const t = tokens[mint];
+      if (!t) return;
+      const ageTd = tr.children[1];
+      if (!ageTd) return;
+      const age = getAge(t.addedAt);
+      const ageClass = age.hours < 1 ? 'age-fresh' : age.hours < 6 ? 'age-mid' : 'age-old';
+      ageTd.innerHTML = `<span class="age-badge ${ageClass}">${age.text}</span>`;
+    });
+  }, 30000);
 
   document.getElementById('empty-state').style.display = 'block';
   connectWS();

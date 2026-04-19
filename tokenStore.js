@@ -29,6 +29,7 @@ class TokenStore {
       firstCheckAt:   null,
       webhookFiredAt: null,
       xMentions:      null,
+      xMentionsDelta: null,
       lastXCheckAt:   null,
     });
   }

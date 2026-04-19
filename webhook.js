@@ -74,7 +74,8 @@ class WebhookService {
       lp:         token.lp,
       holders:    token.holders  ?? 0,
       price:      token.price    ?? 0,
-      xMentions:  token.xMentions ?? null,
+      xMentions:  token.xMentions      ?? null,
+      xMentionsDelta: token.xMentionsDelta ?? null,
       addedAt:    token.addedAt,
       ageHours:   Math.round((Date.now() - token.addedAt) / 3600000 * 10) / 10,
     };

@@ -192,7 +192,8 @@ async function processNewToken(mintAddress, symbol, name, source) {
       holders:        0,
       price:          Number(meta?.price)          || 0,
       priceChange24h: Number(meta?.priceChange24h) || 0,
-      xMentions:      null,
+      xMentions:      null,   // 当前 X mentions 数值
+      xMentionsDelta: null,   // 较上次 15min 的增量
       lastXCheckAt:   null,
       firstCheckAt:   null,
       webhookFiredAt: null,
@@ -314,10 +315,18 @@ async function refreshWatchToken(mint) {
     const lastX       = raw.lastXCheckAt || 0;
     if (now - lastX >= X_REFRESH_MS) {
       const mentions = await birdeye.getXMentions(mint);
-      updates.xMentions    = mentions;
-      updates.lastXCheckAt = now;
       if (mentions !== null) {
-        console.log(`[X] $${raw.symbol} mentions=${mentions}`);
+        const prev  = raw.xMentions;                          // 上次的值
+        const delta = prev !== null ? mentions - prev : null; // null = 第一次，无法计算增量
+        updates.xMentions      = mentions;
+        updates.xMentionsDelta = delta;
+        updates.lastXCheckAt   = now;
+        console.log(
+          `[X] $${raw.symbol} mentions=${mentions}` +
+          (delta !== null ? ` (${delta >= 0 ? '+' : ''}${delta})` : ' (首次)')
+        );
+      } else {
+        updates.lastXCheckAt = now; // 即使查不到也更新时间，避免频繁重试
       }
     }
 
@@ -334,12 +343,19 @@ async function refreshWatchToken(mint) {
       }
     }
 
+    const xDisplay = (() => {
+      const cur   = updates.xMentions      ?? raw.xMentions;
+      const delta = updates.xMentionsDelta ?? raw.xMentionsDelta;
+      if (cur === null || cur === undefined) return '-';
+      if (delta === null || delta === undefined) return String(cur);
+      return `${cur}(${delta >= 0 ? '+' : ''}${delta})`;
+    })();
     const ageH = (ageMs / 3600000).toFixed(1);
     console.log(
       `[P2] $${raw.symbol} | age=${ageH}h` +
       ` FDV=$${fmtNum(fdv)} LP=$${fmtNum(lp)}` +
       ` H=${updates.holders ?? raw.holders}` +
-      ` X=${updates.xMentions ?? raw.xMentions ?? '-'}`
+      ` X=${xDisplay}`
     );
 
   } catch (err) {
