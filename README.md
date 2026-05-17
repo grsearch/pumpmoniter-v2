@@ -1,6 +1,7 @@
 # Pump Radar — Solana Migration Monitor
 
-实时监控 pump.fun 代币迁移事件，通过安全检测过滤 rug pull，将合格代币推送到交易服务器。
+实时监控 **pump.fun** 代币迁移事件，迁移那一刻做安全检测和数据校验，
+满足阈值即推送 webhook 到交易服务器。
 
 ## 架构
 
@@ -8,30 +9,29 @@
 pump.fun 迁移事件 (Helius WebSocket)
         │
         ▼
-🛡️ 前置安全检测 (safetyChecker.js)
-  ├─ 1. Authority Check (Birdeye)
-  └─ 2. Bundle Detection — 关联钱包检测
+🛡️ Authority Check (Birdeye)
         │
         ▼ 通过
-  入库追踪 (tokenStore.js)
-  ├─ 实时刷新 LP/FDV/Holders (Birdeye, 每30s)
-  └─ Holder stats 刷新 (Helius RPC, 每90s)
+📊 拉取 Birdeye 数据 (FDV / LP / holders)
         │
-        ▼ 全部条件满足
+        ▼ 满足条件
 🔔 Webhook → 交易服务器
-  条件: FDV≥$25K & LP≥$5K & Holders≥10
+  条件: FDV ≥ $20K  且  LP ≥ $5K
 ```
+
+> 不再做 Phase 1 / Phase 2 阶段分级、不再监控 LetsBonk。
+> 迁移那一刻一次性判断即可。
 
 ## 文件说明
 
 | 文件 | 说明 |
 |---|---|
-| `index.js` | 主入口，Express + WebSocket + 调度器 |
-| `safetyChecker.js` | 前置安全检测（authority + bundle） |
-| `helius.js` | Helius WebSocket 监听 + RPC 轮询 |
-| `birdeye.js` | Birdeye API（authority check + token data） |
+| `index.js` | 主入口，Express + WebSocket + 迁移事件处理 |
+| `safetyChecker.js` | Authority Check |
+| `helius.js` | Helius WebSocket 监听 + 轮询（仅 pump.fun） |
+| `birdeye.js` | Birdeye API |
 | `webhook.js` | Webhook 发送服务 |
-| `tokenStore.js` | 内存 token 存储 |
+| `tokenStore.js` | 内存 token 存储（仅供前端展示） |
 | `proxy.js` | Webshare 代理管理 |
 | `public/index.html` | 前端 Dashboard |
 
@@ -48,14 +48,29 @@ npm start
 
 ```json
 {
-  "network": "solana",
-  "address": "mint地址",
-  "symbol": "TOKEN",
-  "fdv": 50000,
-  "lp": 8000,
-  "holders": 120,
-  "top10Pct": "35.2%",
-  "devPct": "2.1%",
-  "bundleRisk": "low"
+  "network":  "solana",
+  "source":   "pump.fun",
+  "address":  "mint地址",
+  "symbol":   "TOKEN",
+  "name":     "Token Name",
+  "logoURI":  "...",
+  "fdv":      25000,
+  "lp":       6000,
+  "holders":  120,
+  "price":    0.000123,
+  "addedAt":  1731890000000
 }
 ```
+
+## 触发阈值（可在 .env 中调整）
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `FIRE_MIN_FDV` | 20000 | FDV ≥ 此值才发 webhook |
+| `FIRE_MIN_LP`  | 5000  | LP  ≥ 此值才发 webhook |
+| `FETCH_MAX_TRIES` | 4 | 迁移那一刻 Birdeye 重试次数 |
+| `FETCH_RETRY_MS`  | 2000 | 每次重试间隔（ms） |
+
+## 工作时间
+
+北京时间 07:00 – 23:30 自动开/停监控。

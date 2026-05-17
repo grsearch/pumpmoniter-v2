@@ -73,16 +73,10 @@
     /* source badge */
     .source-badge { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; padding: 1px 5px; border-radius: 2px; margin-top: 3px; white-space: nowrap; }
     .source-pump { color: #f97316; background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.3); }
-    .source-bonk { color: var(--amber); background: rgba(255,179,0,0.1); border: 1px solid rgba(255,179,0,0.3); }
 
     /* webhook badge */
     .webhook-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; padding: 2px 7px; border-radius: 2px; color: #ff9500; background: rgba(255,149,0,0.1); border: 1px solid rgba(255,149,0,0.35); margin-top: 4px; animation: badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; }
     @keyframes badge-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-    /* phase badge */
-    .phase-badge { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 5px; border-radius: 2px; margin-top: 3px; white-space: nowrap; }
-    .phase-pending { color: var(--muted); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
-    .phase-watch { color: var(--green); background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); }
 
     /* Age */
     .age-badge { font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-radius: 2px; white-space: nowrap; }
@@ -108,19 +102,6 @@
     .holders-tier-zero { color: var(--muted); } .holders-tier-zero .holders-bar-fill { background: rgba(255,255,255,0.15); }
     @keyframes holders-up { 0% { background: rgba(0,255,136,0.18); } 100% { background: transparent; } }
     .holders-updated { animation: holders-up 1s ease-out; }
-
-    /* ── X Mentions ── */
-    .x-cell { display: flex; align-items: center; gap: 7px; }
-    .x-icon { width: 13px; height: 13px; fill: currentColor; flex-shrink: 0; opacity: 0.75; }
-    .x-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .x-bar-wrap { width: 36px; height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
-    .x-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
-    .x-hot  { color: var(--purple); } .x-hot  .x-bar-fill { background: var(--purple); }
-    .x-mid  { color: var(--cyan); }   .x-mid  .x-bar-fill { background: var(--cyan); }
-    .x-low  { color: var(--muted); }  .x-low  .x-bar-fill { background: rgba(255,255,255,0.2); }
-    .x-none { color: rgba(255,255,255,0.2); }
-    @keyframes x-up { 0% { background: rgba(167,139,250,0.15); } 100% { background: transparent; } }
-    .x-updated { animation: x-up 1s ease-out; }
 
     /* Contract link */
     .contract-link { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); text-decoration: none; letter-spacing: 0.02em; padding: 3px 8px; border: 1px solid rgba(0,229,255,0.2); border-radius: 2px; transition: all 0.2s; white-space: nowrap; }
@@ -186,7 +167,6 @@
   <button class="sort-btn" data-sort="fdv">FDV</button>
   <button class="sort-btn" data-sort="ratio">LP/FDV</button>
   <button class="sort-btn" data-sort="holders">Holders</button>
-  <button class="sort-btn" data-sort="xMentions">X Mentions</button>
   <input class="search-input" type="text" id="search-input" placeholder="Search symbol / contract..." />
 </div>
 
@@ -200,7 +180,6 @@
         <th data-col="fdv">FDV</th>
         <th data-col="ratio">LP / FDV</th>
         <th data-col="holders">HOLDERS</th>
-        <th data-col="xMentions">X MENTIONS</th>
         <th data-col="mint">CONTRACT</th>
       </tr>
     </thead>
@@ -212,7 +191,7 @@
       <div class="radar-dot"></div>
     </div>
     <div class="empty-title">Scanning for migrations...</div>
-    <div class="empty-sub">Waiting for pump.fun &amp; LetsBonk graduation events</div>
+    <div class="empty-sub">Waiting for pump.fun graduation events</div>
   </div>
 </div>
 
@@ -226,7 +205,6 @@
   let ws           = null;
   let webhookFired = new Set();
   let prevHolders  = {};
-  let prevXMentions = {};
   let skippedCount = 0;
 
   // ── WebSocket ──────────────────────────────────────────
@@ -255,8 +233,7 @@
       tokens = {};
       msg.data.forEach(t => {
         tokens[t.mint]      = t;
-        prevHolders[t.mint]  = t.holders;
-        prevXMentions[t.mint] = t.xMentions;
+        prevHolders[t.mint] = t.holders;
       });
       fetch('/api/webhook/fired').then(r => r.json()).then(d => {
         (d.fired || []).forEach(m => webhookFired.add(m));
@@ -269,25 +246,20 @@
       showToast(`🔔 Webhook: $${msg.data.symbol}`, 'amber');
 
     } else if (msg.type === 'token_added') {
-      tokens[msg.data.mint]       = msg.data;
-      prevHolders[msg.data.mint]  = msg.data.holders;
-      prevXMentions[msg.data.mint] = msg.data.xMentions;
-      const src = msg.data.source === 'letsbonk' ? '🟡 LetsBonk' : '🟢 pump.fun';
-      showToast(`${src}: $${msg.data.symbol}`, 'green');
+      tokens[msg.data.mint]      = msg.data;
+      prevHolders[msg.data.mint] = msg.data.holders;
+      showToast(`🟢 pump.fun: $${msg.data.symbol}`, 'green');
       renderAll();
 
     } else if (msg.type === 'token_updated') {
-      const holdersChanged  = prevHolders[msg.data.mint]   !== undefined && prevHolders[msg.data.mint]   !== msg.data.holders;
-      const xChanged        = prevXMentions[msg.data.mint] !== undefined && prevXMentions[msg.data.mint] !== msg.data.xMentions;
-      prevHolders[msg.data.mint]  = msg.data.holders;
-      prevXMentions[msg.data.mint] = msg.data.xMentions;
+      const holdersChanged = prevHolders[msg.data.mint] !== undefined && prevHolders[msg.data.mint] !== msg.data.holders;
+      prevHolders[msg.data.mint] = msg.data.holders;
       tokens[msg.data.mint] = msg.data;
-      updateRow(msg.data, holdersChanged, xChanged);
+      updateRow(msg.data, holdersChanged);
 
     } else if (msg.type === 'token_removed') {
       delete tokens[msg.data.mint];
       delete prevHolders[msg.data.mint];
-      delete prevXMentions[msg.data.mint];
       removeRow(msg.data.mint);
       showToast(`🔴 Removed: ${msg.data.reason || ''}`, 'red');
 
@@ -316,9 +288,8 @@
     }
     list.sort((a, b) => {
       let av, bv;
-      if      (sortKey === 'ratio')     { av = a.fdv > 0 ? a.lp/a.fdv : 0; bv = b.fdv > 0 ? b.lp/b.fdv : 0; }
-      else if (sortKey === 'xMentions') { av = a.xMentions ?? -1; bv = b.xMentions ?? -1; }
-      else                              { av = a[sortKey] ?? 0;   bv = b[sortKey] ?? 0; }
+      if (sortKey === 'ratio') { av = a.fdv > 0 ? a.lp/a.fdv : 0; bv = b.fdv > 0 ? b.lp/b.fdv : 0; }
+      else                     { av = a[sortKey] ?? 0;   bv = b[sortKey] ?? 0; }
       return (av - bv) * sortDir;
     });
     return list;
@@ -338,25 +309,9 @@
     const barPct  = n === 0 ? 0 : Math.min((n / 1000) * 100, 100).toFixed(1);
     const display = n === 0 ? '—' : fmtNum(n);
     return `<div class="holders-cell ${tierClass}">
-      <svg class="x-icon" viewBox="0 0 13 13"><circle cx="6.5" cy="3.5" r="2.5"/><path d="M1 12c0-3.038 2.462-5.5 5.5-5.5S12 8.962 12 12H1z"/></svg>
+      <svg class="x-icon" viewBox="0 0 13 13" style="width:13px;height:13px;fill:currentColor;opacity:0.75"><circle cx="6.5" cy="3.5" r="2.5"/><path d="M1 12c0-3.038 2.462-5.5 5.5-5.5S12 8.962 12 12H1z"/></svg>
       <span class="holders-val">${display}</span>
       <div class="holders-bar-wrap"><div class="holders-bar-fill" style="width:${barPct}%"></div></div>
-    </div>`;
-  }
-
-  function xMentionsHTML(mentions) {
-    // X (Twitter) logo SVG path
-    const xSvg = `<svg class="x-icon" viewBox="0 0 1200 1227" xmlns="http://www.w3.org/2000/svg"><path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.163 519.284ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.828Z"/></svg>`;
-    if (mentions === null || mentions === undefined) {
-      return `<div class="x-cell x-none">${xSvg}<span class="x-val">—</span></div>`;
-    }
-    const n = Number(mentions);
-    let cls  = n >= 100 ? 'x-hot' : n >= 20 ? 'x-mid' : 'x-low';
-    const barPct = Math.min((n / 200) * 100, 100).toFixed(1);
-    return `<div class="x-cell ${cls}" id="xcell-inner">
-      ${xSvg}
-      <span class="x-val">${fmtNum(n)}</span>
-      <div class="x-bar-wrap"><div class="x-bar-fill" style="width:${barPct}%"></div></div>
     </div>`;
   }
 
@@ -370,7 +325,7 @@
     const ratioFill = Math.min(ratio * 100, 100).toFixed(1);
     const ratioStr  = (ratio * 100).toFixed(1) + '%';
     const lpClass   = t.lp  < 5000  ? 'warning' : '';
-    const fdvClass  = t.fdv < 30000 ? 'warning' : '';
+    const fdvClass  = t.fdv < 20000 ? 'warning' : '';
     const mintShort = t.mint ? `${t.mint.slice(0,4)}…${t.mint.slice(-4)}` : '—';
     const gmgnUrl   = `https://gmgn.ai/sol/token/${t.mint}`;
 
@@ -378,16 +333,7 @@
       ? `<img class="token-logo" src="${escHtml(t.logoURI)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'" /><div class="token-logo-placeholder" style="display:none">${(t.symbol||'?')[0]}</div>`
       : `<div class="token-logo-placeholder">${(t.symbol||'?')[0]}</div>`;
 
-    // source badge
-    const srcClass = t.source === 'letsbonk' ? 'source-bonk' : 'source-pump';
-    const srcLabel = t.source === 'letsbonk' ? '⬡ BONK'      : '◎ PUMP';
-    const sourceBadge = `<div class="source-badge ${srcClass}">${srcLabel}</div>`;
-
-    // phase badge
-    const phaseLabel = t.phase === 'watch' ? '● WATCH' : '○ PENDING';
-    const phaseCls   = t.phase === 'watch' ? 'phase-watch' : 'phase-pending';
-    const phaseBadge = `<div class="phase-badge ${phaseCls}">${phaseLabel}</div>`;
-
+    const sourceBadge  = `<div class="source-badge source-pump">◎ PUMP</div>`;
     const webhookBadge = webhookFired.has(t.mint) ? `<div class="webhook-badge">🔔 SENT</div>` : '';
 
     return `
@@ -397,7 +343,7 @@
           <div>
             <div class="symbol-text">$${escHtml(t.symbol || '???')}</div>
             <div class="name-text">${escHtml(t.name || '')}</div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap">${sourceBadge}${phaseBadge}${webhookBadge}</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">${sourceBadge}${webhookBadge}</div>
           </div>
         </div>
       </td>
@@ -411,12 +357,11 @@
         </div>
       </td>
       <td id="holders-${t.mint}">${holdersHTML(t.holders)}</td>
-      <td id="xcell-${t.mint}">${xMentionsHTML(t.xMentions)}</td>
       <td><a class="contract-link" href="${gmgnUrl}" target="_blank" title="${t.mint}">${mintShort}</a></td>
     `;
   }
 
-  function updateRow(t, holdersChanged, xChanged) {
+  function updateRow(t, holdersChanged) {
     const tr = document.getElementById(`row-${t.mint}`);
     if (!tr) { renderAll(); return; }
     tr.innerHTML = rowHTML(t);
@@ -425,10 +370,6 @@
     if (holdersChanged) {
       const hCell = document.getElementById(`holders-${t.mint}`);
       if (hCell) { hCell.classList.add('holders-updated'); setTimeout(() => hCell.classList.remove('holders-updated'), 1000); }
-    }
-    if (xChanged) {
-      const xCell = document.getElementById(`xcell-${t.mint}`);
-      if (xCell) { xCell.classList.add('x-updated'); setTimeout(() => xCell.classList.remove('x-updated'), 1000); }
     }
     updateTimestamp();
   }
